@@ -329,7 +329,7 @@ async function findZone() {
     if (d.pluUrl) {
       pluUrl = d.pluUrl;
       const po = document.getElementById("pluOk");
-      po.innerHTML = "📄 PLU trouvé automatiquement : <strong>" + (d.pluName || "Règlement") + "</strong>";
+      po.innerHTML = "📄 PLU trouvé : <strong>" + (d.pluName || "Règlement") + "</strong> &nbsp;·&nbsp; <a href=\"" + d.pluUrl + "\" target=\"_blank\" style=\"color:#065f46;font-weight:500;text-decoration:underline;\">📥 Télécharger & vérifier</a>";
       po.style.display = "block";
       const pu = document.getElementById("pluUpload");
       if (pu) pu.style.display = "none";
