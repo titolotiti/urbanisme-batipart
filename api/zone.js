@@ -45,8 +45,12 @@ export default async function handler(req, res) {
     const feature = geoData.features[0];
     const [lon, lat] = feature.geometry.coordinates;
     const label = feature.properties.label;
-    const citycode = feature.properties.citycode;
+    let citycode = feature.properties.citycode;
     const city = feature.properties.city;
+    // Normalisation Paris/Lyon/Marseille : codes arrondissements → code commune
+    if (citycode.startsWith('751')) citycode = '75056'; // Paris
+    if (citycode.startsWith('692')) citycode = '69123'; // Lyon
+    if (citycode.startsWith('132')) citycode = '13055'; // Marseille
 
     // ÉTAPE 2 : Zone PLU via APICarto
     let zone = null, partition = null;
