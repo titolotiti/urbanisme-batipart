@@ -90,14 +90,6 @@ export default async function handler(req, res) {
       } catch(e) { console.log('APICarto doc error:', e.message); }
     }
 
-    // 3c : Vérifier que l'URL est accessible
-    if (pluUrl) {
-      try {
-        const check = await fetch(pluUrl, { method: 'HEAD', headers: HEADERS });
-        if (!check.ok) { pluUrl = null; pluName = null; }
-      } catch(e) { pluUrl = null; pluName = null; }
-    }
-
     return res.status(200).json({
       success: true, address: label, coordinates: { lat, lon },
       citycode, city, zone, partition, pluUrl, pluName
