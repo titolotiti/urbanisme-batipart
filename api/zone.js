@@ -16,9 +16,10 @@ export default async function handler(req, res) {
 
   // Base de données PLU par code INSEE — URLs vérifiées
   const PLU_DB = {
-    '92075': { url: 'https://www.suresnes.fr/wp-content/uploads/2024/07/4.1-Reglement-PLU-Suresnes-Modification-26-06-2024-V2.pdf', name: 'PLU Suresnes — Modif. 26/06/2024' },
-    '92020': { url: 'https://www.colombes.fr/app/uploads/2024/03/AR-2._Re__glement_modification_n.5_-_approb_07-12-2023-1.pdf', name: 'PLU Colombes — Modif. 07/12/2023' },
-    '94037': { url: 'https://www.ville-gentilly.fr/sites/default/files/modification_ndeg6_du_plu_-_reglement_ecrit.pdf', name: 'PLU Gentilly — Modif. 12/03/2024' },
+    '75056': { url: 'https://data.geopf.fr/annexes/gpu/documents/DU_75056/29b89f23c2ea085d0ea7706d42254ce2/75056_reglement_20251219.pdf', name: 'PLU Paris bioclimatique — 16-19/12/2025' },
+    '92075': { url: 'https://www.suresnes.fr/wp-content/uploads/2024/07/4.1-Reglement-PLU-Suresnes-Modification-26-06-2024-V2.pdf', name: 'PLU Suresnes 2024' },
+    '92020': { url: 'https://www.colombes.fr/app/uploads/2024/03/AR-2._Re__glement_modification_n.5_-_approb_07-12-2023-1.pdf', name: 'PLU Colombes 2023' },
+    '94037': { url: 'https://www.ville-gentilly.fr/sites/default/files/modification_ndeg6_du_plu_-_reglement_ecrit.pdf', name: 'PLU Gentilly 2024' },
     '92062': { url: 'https://www.nanterre.fr/fileadmin/user_upload/Documents/Urbanisme/PLU/Reglement/Reglement_ecrit.pdf', name: 'PLU Nanterre' },
     '92064': { url: 'https://www.puteaux.fr/sites/default/files/document/2023/plu-reglement-ecrit.pdf', name: 'PLU Puteaux' },
     '92023': { url: 'https://www.ville-clamart.fr/fileadmin/Clamart/Urbanisme/PLU/reglement.pdf', name: 'PLU Clamart' },
@@ -66,10 +67,18 @@ export default async function handler(req, res) {
       }
     } catch(e) { console.log('Zone error:', e.message); }
 
-    // ÉTAPE 3 : Trouver URL du PLU
+    // ÉTAPE 3 : Trouver URL du PLU — approche dynamique multi-sources
     let pluUrl = null, pluName = null;
 
-    // 3a : APICarto documents EN PRIORITÉ (source officielle et à jour)
+    // Fonction utilitaire : extraire date lisible depuis URL
+    function extractDate(url) {
+      const m = url.match(/_(\d{8})\.pdf$/i);
+      if (!m) return '';
+      const d = m[1];
+      return ` — ${d.slice(6)}/${d.slice(4,6)}/${d.slice(0,4)}`;
+    }
+
+    // 3a : APICarto document API (source officielle, toujours à jour)
     if (partition) {
       try {
         const docRes = await fetch(
@@ -79,26 +88,59 @@ export default async function handler(req, res) {
         const docData = await docRes.json();
         if (docData.features?.length) {
           const docs = docData.features.map(f => f.properties);
-          // Cherche le règlement écrit tome 1 en priorité
-          const reg = 
-            docs.find(d => d.url?.includes('reglement') && !d.url?.includes('graphique') && d.url?.endsWith('.pdf')) ||
-            docs.find(d => (d.libelle?.toLowerCase().includes('règlement') || d.libelle?.toLowerCase().includes('reglement')) && d.url?.endsWith('.pdf')) ||
+          const reg =
+            docs.find(d => d.url?.match(/reglement(?!.*graphique).*\.pdf$/i)) ||
+            docs.find(d => d.libelle?.toLowerCase().includes('règlement') && d.url?.endsWith('.pdf')) ||
             docs.find(d => d.url?.endsWith('.pdf'));
           if (reg?.url) {
             pluUrl = reg.url;
-            pluName = reg.libelle || reg.nom || 'Règlement PLU';
-            // Ajouter la date si disponible dans l'URL
-            const dateMatch = reg.url.match(/_(\d{8})\.pdf$/);
-            if (dateMatch) {
-              const d = dateMatch[1];
-              pluName += ` (${d.slice(6)}-${d.slice(4,6)}-${d.slice(0,4)})`;
-            }
+            pluName = (reg.libelle || 'Règlement PLU') + extractDate(reg.url);
           }
         }
       } catch(e) { console.log('APICarto doc error:', e.message); }
     }
 
-    // 3b : Base de données locale (fallback si APICarto ne trouve pas)
+    // 3b : Géoportail de l'Urbanisme — info endpoint (fallback APICarto)
+    if (!pluUrl && partition) {
+      try {
+        const gpuRes = await fetch(
+          `https://www.geoportail-urbanisme.gouv.fr/api/document/by-id/${encodeURIComponent(partition)}`,
+          { headers: HEADERS }
+        );
+        if (gpuRes.ok) {
+          const gpuData = await gpuRes.json();
+          const files = gpuData?.files || gpuData?.documents || [];
+          const reg = files.find(f => f.url?.match(/reglement(?!.*graphique).*\.pdf$/i))
+                   || files.find(f => f.url?.endsWith('.pdf'));
+          if (reg?.url) {
+            pluUrl = reg.url;
+            pluName = 'Règlement PLU' + extractDate(reg.url);
+          }
+        }
+      } catch(e) { console.log('GPU info error:', e.message); }
+    }
+
+    // 3c : Construire l'URL data.geopf.fr depuis la partition (Paris et autres grandes villes)
+    if (!pluUrl && partition) {
+      try {
+        // La partition contient l'ID du document ex: 75056_PLU_20251219
+        // On peut interroger le GPU pour obtenir le hash correspondant
+        const gpuListRes = await fetch(
+          `https://apicarto.ign.fr/api/gpu/municipality?codgeo=${citycode}`,
+          { headers: HEADERS }
+        );
+        if (gpuListRes.ok) {
+          const gpuList = await gpuListRes.json();
+          const doc = gpuList?.features?.[0]?.properties;
+          if (doc?.url_doc) {
+            pluUrl = doc.url_doc;
+            pluName = 'Règlement PLU' + extractDate(doc.url_doc);
+          }
+        }
+      } catch(e) { console.log('GPU municipality error:', e.message); }
+    }
+
+    // 3d : Base de données locale (dernier recours — mise à jour manuelle périodique)
     if (!pluUrl && PLU_DB[citycode]) {
       pluUrl = PLU_DB[citycode].url;
       pluName = PLU_DB[citycode].name;
