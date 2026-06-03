@@ -124,7 +124,14 @@ export default async function handler(req, res) {
     let pdfBase64 = pluBase64;
 
     if (!pdfBase64 && pluUrl) {
-      const pdfRes = await fetch(pluUrl);
+      const pdfRes = await fetch(pluUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/pdf,*/*',
+          'Accept-Language': 'fr-FR,fr;q=0.9',
+          'Referer': 'https://www.google.com/',
+        }
+      });
       if (!pdfRes.ok) throw new Error(`Impossible de télécharger le PLU (${pdfRes.status})`);
       const buffer = await pdfRes.arrayBuffer();
       pdfBase64 = Buffer.from(buffer).toString('base64');
