@@ -174,6 +174,15 @@ body{background:var(--bg);color:var(--ink);font-family:"Plus Jakarta Sans",sans-
           </div>
           <div class="geo-box" id="geoBox"></div>
           <div class="plu-ok" id="pluOk"></div>
+        <div class="plu-upload" id="pluUpload" style="margin-top:8px;">
+          <label style="display:block;font-size:11.5px;font-weight:500;color:#475569;margin-bottom:6px;">📄 PLU non trouvé automatiquement — uploadez le règlement manuellement</label>
+          <div class="drop-zone" id="dropZone" style="position:relative;border:2px dashed #e2e8f0;border-radius:10px;padding:20px;text-align:center;cursor:pointer;background:#f8fafc;transition:all .2s;">
+            <input type="file" id="pluFile" accept=".pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;">
+            <div style="font-size:20px;margin-bottom:6px;">📄</div>
+            <div style="font-size:13px;color:#475569;">Glissez le PDF ici ou cliquez</div>
+            <div class="file-chosen" id="fileChosen" style="display:none;margin-top:8px;background:#ecfdf5;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:500;color:#065f46;"></div>
+          </div>
+        </div>
         </div>
         <div class="sep"><div></div><span>ou renseigner manuellement</span><div></div></div>
         <div class="field">
@@ -255,7 +264,30 @@ body{background:var(--bg);color:var(--ink);font-family:"Plus Jakarta Sans",sans-
 
 <script>
 let pluUrl = null;
+let pluBase64 = null;
 const results = {};
+
+// File upload handling
+document.addEventListener('DOMContentLoaded', () => {
+  const fileInput = document.getElementById('pluFile');
+  const dropZone = document.getElementById('dropZone');
+  if (fileInput) {
+    fileInput.addEventListener('change', e => loadPdf(e.target.files[0]));
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor='#0d9488'; dropZone.style.background='#e6f7f6'; });
+    dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor='#e2e8f0'; dropZone.style.background='#f8fafc'; });
+    dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.style.borderColor='#e2e8f0'; dropZone.style.background='#f8fafc'; const f = e.dataTransfer.files[0]; if (f?.type==='application/pdf') loadPdf(f); });
+  }
+});
+
+function loadPdf(file) {
+  if (!file || file.type !== 'application/pdf') return;
+  const fc = document.getElementById('fileChosen');
+  fc.textContent = '✓ ' + file.name;
+  fc.style.display = 'block';
+  const r = new FileReader();
+  r.onload = e => { pluBase64 = e.target.result.split(',')[1]; };
+  r.readAsDataURL(file);
+}
 
 function toggleV(id) {
   const b = document.getElementById("vb-" + id);
@@ -297,8 +329,13 @@ async function findZone() {
     if (d.pluUrl) {
       pluUrl = d.pluUrl;
       const po = document.getElementById("pluOk");
-      po.innerHTML = "📄 PLU trouvé : <strong>" + (d.pluName || "Règlement") + "</strong>";
+      po.innerHTML = "📄 PLU trouvé automatiquement : <strong>" + (d.pluName || "Règlement") + "</strong>";
       po.style.display = "block";
+      const pu = document.getElementById("pluUpload");
+      if (pu) pu.style.display = "none";
+    } else {
+      const pu = document.getElementById("pluUpload");
+      if (pu) pu.style.display = "block";
     }
   } catch(e) {
     showGeo("err", "❌ " + e.message);
@@ -328,7 +365,7 @@ async function run(type) {
   try {
     const r = await fetch("/api/analyze", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({zone, analysisType: type, pluUrl})
+      body: JSON.stringify({zone, analysisType: type, pluUrl, pluBase64})
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);
