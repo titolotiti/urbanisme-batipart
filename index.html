@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analyseur PLU — Batipart</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#f0f4f8;--surface:#fff;--surface2:#f8fafc;
+  --ink:#1e293b;--ink2:#475569;--ink3:#94a3b8;
+  --teal:#0d9488;--teal-light:#e6f7f6;
+  --blue-light:#eff6ff;--amber-light:#fffbeb;
+  --red-light:#fef2f2;--green-light:#ecfdf5;
+  --border:#e2e8f0;--sidebar:#1e293b;
+  --r:16px;--r-sm:10px;--r-xs:6px;
+  --shadow:0 4px 16px rgba(0,0,0,.07);
+  --shadow-lg:0 10px 40px rgba(0,0,0,.1);
+}
+body{background:var(--bg);color:var(--ink);font-family:"Plus Jakarta Sans",sans-serif;font-weight:300;min-height:100vh;display:flex;}
+.sidebar{width:240px;background:var(--sidebar);flex-shrink:0;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:20;overflow-y:auto;}
+.sidebar-brand{padding:20px 18px 16px;border-bottom:1px solid rgba(255,255,255,.08);}
+.brand-logo{background:#fff;border-radius:8px;padding:8px 12px;display:inline-block;}
+.brand-logo img{width:120px;height:auto;display:block;}
+.brand-sub{font-size:11px;color:rgba(255,255,255,.4);margin-top:10px;padding:0 2px;}
+.sidebar-section{padding:16px 12px 4px;}
+.section-label{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.3);padding:0 8px;margin-bottom:6px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;cursor:pointer;transition:background .15s;margin-bottom:2px;}
+.nav-item:hover:not(.soon){background:rgba(255,255,255,.07);}
+.nav-item.active{background:rgba(13,148,136,.25);}
+.nav-item.active .nav-label{color:#5eead4;}
+.nav-item.active .nav-icon-wrap{background:rgba(13,148,136,.35);}
+.nav-item.soon{opacity:.4;cursor:default;}
+.nav-icon-wrap{width:28px;height:28px;background:rgba(255,255,255,.06);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+.nav-label{font-size:13px;color:rgba(255,255,255,.7);}
+.nav-badge{margin-left:auto;background:rgba(255,255,255,.08);color:rgba(255,255,255,.35);font-size:10px;padding:2px 7px;border-radius:99px;}
+.main{margin-left:240px;flex:1;display:flex;flex-direction:column;min-height:100vh;}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;height:56px;display:flex;align-items:center;position:sticky;top:0;z-index:10;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+.topbar h2{font-family:"Sora",sans-serif;font-size:15px;font-weight:600;color:var(--ink);}
+.topbar p{font-size:11.5px;color:var(--ink3);margin-top:1px;}
+.content{padding:24px 28px 60px;flex:1;max-width:720px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;margin-bottom:18px;}
+.card-header{padding:18px 22px 0;display:flex;align-items:center;gap:10px;}
+.step-badge{width:26px;height:26px;background:var(--teal);border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:"Sora",sans-serif;font-size:12px;font-weight:600;color:#fff;flex-shrink:0;}
+.card-header h2{font-family:"Sora",sans-serif;font-size:14px;font-weight:600;color:var(--ink);}
+.card-body{padding:16px 22px 22px;}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:11.5px;font-weight:500;color:var(--ink2);margin-bottom:6px;}
+.field input{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--r-sm);padding:10px 14px;font-family:"Sora",sans-serif;font-size:13.5px;color:var(--ink);outline:none;transition:border-color .18s;}
+.field input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(13,148,136,.11);}
+.field input::placeholder{color:var(--ink3);}
+.addr-row{display:flex;gap:8px;}
+.btn-find{flex-shrink:0;background:linear-gradient(135deg,#0d9488,#0891b2);color:#fff;border:none;border-radius:var(--r-sm);padding:11px 16px;font-family:"Sora",sans-serif;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;transition:opacity .2s;}
+.btn-find:hover{opacity:.88;}
+.btn-find:disabled{opacity:.5;cursor:not-allowed;}
+.geo-box{display:none;margin-top:8px;border-radius:var(--r-sm);padding:10px 14px;font-size:13px;line-height:1.6;}
+.geo-ok{background:var(--green-light);border:1px solid #a7f3d0;color:#065f46;}
+.geo-err{background:var(--red-light);border:1px solid #fecaca;color:#991b1b;}
+.geo-load{background:var(--blue-light);border:1px solid #bfdbfe;color:#1d4ed8;}
+.sep{display:flex;align-items:center;gap:10px;margin:4px 0 12px;}
+.sep div{flex:1;height:1px;background:var(--border);}
+.sep span{font-size:11px;color:var(--ink3);white-space:nowrap;}
+.plu-ok{display:none;background:var(--green-light);border:1px solid #a7f3d0;border-radius:var(--r-sm);padding:9px 14px;font-size:12.5px;color:#065f46;margin-top:8px;}
+.volet{border-radius:var(--r-sm);overflow:hidden;margin-bottom:8px;}
+.volet-head{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;background:var(--surface2);border-radius:var(--r-sm);transition:background .15s;user-select:none;}
+.volet-head:hover{background:var(--teal-light);}
+.volet.open .volet-head{background:var(--teal-light);border-radius:var(--r-sm) var(--r-sm) 0 0;}
+.vi{font-size:18px;flex-shrink:0;}
+.vinfo{flex:1;}
+.vtitle{font-family:"Sora",sans-serif;font-size:13.5px;font-weight:600;color:var(--ink);}
+.vsub{font-size:11.5px;color:var(--ink3);margin-top:2px;}
+.varrow{font-size:20px;color:var(--ink3);transition:transform .25s;line-height:1;}
+.volet.open .varrow{transform:rotate(90deg);color:var(--teal);}
+.volet-body{border:1.5px solid var(--teal-light);border-top:none;border-radius:0 0 var(--r-sm) var(--r-sm);padding:16px;background:var(--surface);}
+.btn-go{width:100%;background:linear-gradient(135deg,#0d9488,#0891b2);color:#fff;border:none;border-radius:var(--r-sm);padding:13px;font-family:"Sora",sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:opacity .2s;}
+.btn-go:hover:not(:disabled){opacity:.88;}
+.btn-go:disabled{background:var(--border);color:var(--ink3);cursor:not-allowed;}
+.err{display:none;background:var(--red-light);border:1px solid #fecaca;border-radius:var(--r-sm);padding:13px 16px;font-size:13px;color:#991b1b;margin-top:14px;}
+.err.show{display:block;}
+.spin{display:none;text-align:center;padding:28px 0;}
+.spin.show{display:block;}
+.dots{display:flex;gap:7px;justify-content:center;margin-bottom:12px;}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--teal);animation:bounce 1.2s infinite ease-in-out;}
+.dot:nth-child(2){animation-delay:.2s;background:#0891b2;}
+.dot:nth-child(3){animation-delay:.4s;background:#6366f1;}
+@keyframes bounce{0%,80%,100%{transform:scale(.6);opacity:.4;}40%{transform:scale(1);opacity:1;}}
+.spin p{font-size:13.5px;color:var(--ink2);}
+.spin small{font-size:11.5px;color:var(--ink3);margin-top:4px;display:block;}
+.res{display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);overflow:hidden;margin-top:14px;}
+.res.show{display:block;}
+.res-top{background:linear-gradient(135deg,#0d9488,#0891b2);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.res-top h3{font-family:"Sora",sans-serif;font-size:14px;font-weight:600;color:#fff;}
+.ztag{background:rgba(255,255,255,.22);color:#fff;font-family:"Sora",sans-serif;font-size:12px;font-weight:600;padding:4px 12px;border-radius:99px;}
+.res-body{padding:20px 22px;}
+.res-body h2{font-family:"Sora",sans-serif;font-size:15px;font-weight:600;color:var(--ink);margin:20px 0 8px;display:flex;align-items:center;gap:8px;}
+.res-body h2:first-child{margin-top:0;}
+.res-body h2::before{content:"";display:inline-block;width:3px;height:16px;background:var(--teal);border-radius:3px;flex-shrink:0;}
+.res-body h3{font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin:16px 0 7px;}
+.res-body p{font-size:13.5px;line-height:1.8;color:var(--ink2);margin-bottom:8px;}
+.res-body ul{padding-left:16px;margin-bottom:8px;}
+.res-body li{font-size:13.5px;line-height:1.75;color:var(--ink2);margin-bottom:4px;}
+.res-body blockquote{background:#f8fafc;border-left:3px solid var(--teal);padding:9px 14px;margin:10px 0;font-family:"Sora",sans-serif;font-size:12px;line-height:1.7;color:#334155;border-radius:0 5px 5px 0;}
+.res-body strong{font-weight:500;color:var(--ink);}
+.res-body hr{border:none;border-top:1px solid var(--border);margin:16px 0;}
+.v-ok{display:inline-block;background:var(--green-light);color:#065f46;border-radius:7px;padding:3px 9px;font-weight:500;font-size:13px;}
+.v-warn{display:inline-block;background:var(--amber-light);color:#92400e;border-radius:7px;padding:3px 9px;font-weight:500;font-size:13px;}
+.v-nok{display:inline-block;background:var(--red-light);color:#991b1b;border-radius:7px;padding:3px 9px;font-weight:500;font-size:13px;}
+.v-unk{display:inline-block;background:var(--bg);color:var(--ink3);border-radius:7px;padding:3px 9px;font-weight:500;font-size:13px;}
+.res-foot{padding:13px 20px;border-top:1px solid var(--border);display:flex;gap:8px;background:var(--surface2);}
+.bsm{border:1.5px solid var(--border);background:var(--surface);border-radius:var(--r-xs);padding:7px 14px;font-family:"Plus Jakarta Sans",sans-serif;font-size:12px;cursor:pointer;color:var(--ink2);display:flex;align-items:center;gap:5px;transition:background .15s;}
+.bsm:hover{background:var(--bg);}
+.bsm.teal{border-color:var(--teal);color:var(--teal);}
+.bsm.teal:hover{background:var(--teal-light);}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-logo">
+      <img src="data:image/webp;base64,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" alt="Batipart">
+    </div>
+    <div class="brand-sub">Analyseur PLU</div>
+  </div>
+  <div class="sidebar-section">
+    <div class="section-label">Analyse PLU</div>
+    <div class="nav-item active">
+      <div class="nav-icon-wrap">⚖️</div>
+      <span class="nav-label">Analyses</span>
+    </div>
+    <div class="nav-item soon">
+      <div class="nav-icon-wrap">📐</div>
+      <span class="nav-label">Gabarit & reculs</span>
+      <span class="nav-badge">Bientôt</span>
+    </div>
+    <div class="nav-item soon">
+      <div class="nav-icon-wrap">🅿️</div>
+      <span class="nav-label">Stationnement</span>
+      <span class="nav-badge">Bientôt</span>
+    </div>
+  </div>
+  <div class="sidebar-section">
+    <div class="section-label">Documents</div>
+    <div class="nav-item soon">
+      <div class="nav-icon-wrap">📄</div>
+      <span class="nav-label">Note de synthèse</span>
+      <span class="nav-badge">Bientôt</span>
+    </div>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div>
+      <h2>Analyses PLU</h2>
+      <p>Changement de destination · Surélévation · Extension</p>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="card">
+      <div class="card-header">
+        <div class="step-badge">1</div>
+        <h2>Adresse et zone PLU</h2>
+      </div>
+      <div class="card-body">
+        <div class="field">
+          <label>Adresse du bien</label>
+          <div class="addr-row">
+            <input type="text" id="address" placeholder="ex : 14 rue de Mantes, Colombes" oninput="checkAll()">
+            <button class="btn-find" id="btnFind" onclick="findZone()">🔍 Trouver la zone</button>
+          </div>
+          <div class="geo-box" id="geoBox"></div>
+          <div class="plu-ok" id="pluOk"></div>
+        </div>
+        <div class="sep"><div></div><span>ou renseigner manuellement</span><div></div></div>
+        <div class="field">
+          <label>Zone PLU</label>
+          <input type="text" id="zone" placeholder="ex : UBc · UA · UM" oninput="checkAll()">
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="overflow:visible;">
+      <div class="card-header">
+        <div class="step-badge">2</div>
+        <h2>Choisissez votre analyse</h2>
+      </div>
+      <div class="card-body" style="padding-top:14px;">
+
+        <div class="volet" id="v-destination">
+          <div class="volet-head" onclick="toggleV('destination')">
+            <div class="vi">⚖️</div>
+            <div class="vinfo"><div class="vtitle">Changement de destination</div><div class="vsub">Bureaux → Logements · Bâtiment existant</div></div>
+            <div class="varrow">›</div>
+          </div>
+          <div class="volet-body" id="vb-destination" style="display:none;">
+            <button class="btn-go" id="btn-destination" onclick="run('destination')" disabled>⚖️ Lancer l'analyse</button>
+            <div class="err" id="err-destination"></div>
+            <div class="spin" id="sp-destination"><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><p>Analyse en cours…</p><small>Téléchargement PLU · Lecture règlement · Rédaction</small></div>
+            <div class="res" id="res-destination">
+              <div class="res-top"><h3>Changement de destination</h3><span class="ztag" id="zt-destination"></span></div>
+              <div class="res-body" id="rb-destination"></div>
+              <div class="res-foot"><button class="bsm teal" onclick="copy('destination')">📋 Copier</button><button class="bsm" onclick="reset('destination')">↩ Réinitialiser</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:8px;"></div>
+
+        <div class="volet" id="v-surelevation">
+          <div class="volet-head" onclick="toggleV('surelevation')">
+            <div class="vi">🏗️</div>
+            <div class="vinfo"><div class="vtitle">Surélévation</div><div class="vsub">Ajout d'étages · Hauteur max · Gabarit</div></div>
+            <div class="varrow">›</div>
+          </div>
+          <div class="volet-body" id="vb-surelevation" style="display:none;">
+            <button class="btn-go" id="btn-surelevation" onclick="run('surelevation')" disabled>🏗️ Lancer l'analyse</button>
+            <div class="err" id="err-surelevation"></div>
+            <div class="spin" id="sp-surelevation"><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><p>Analyse en cours…</p><small>Téléchargement PLU · Lecture règlement · Rédaction</small></div>
+            <div class="res" id="res-surelevation">
+              <div class="res-top"><h3>Surélévation</h3><span class="ztag" id="zt-surelevation"></span></div>
+              <div class="res-body" id="rb-surelevation"></div>
+              <div class="res-foot"><button class="bsm teal" onclick="copy('surelevation')">📋 Copier</button><button class="bsm" onclick="reset('surelevation')">↩ Réinitialiser</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:8px;"></div>
+
+        <div class="volet" id="v-extension">
+          <div class="volet-head" onclick="toggleV('extension')">
+            <div class="vi">📐</div>
+            <div class="vinfo"><div class="vtitle">Extension</div><div class="vsub">Agrandissement · Emprise au sol · Reculs</div></div>
+            <div class="varrow">›</div>
+          </div>
+          <div class="volet-body" id="vb-extension" style="display:none;">
+            <button class="btn-go" id="btn-extension" onclick="run('extension')" disabled>📐 Lancer l'analyse</button>
+            <div class="err" id="err-extension"></div>
+            <div class="spin" id="sp-extension"><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><p>Analyse en cours…</p><small>Téléchargement PLU · Lecture règlement · Rédaction</small></div>
+            <div class="res" id="res-extension">
+              <div class="res-top"><h3>Extension</h3><span class="ztag" id="zt-extension"></span></div>
+              <div class="res-body" id="rb-extension"></div>
+              <div class="res-foot"><button class="bsm teal" onclick="copy('extension')">📋 Copier</button><button class="bsm" onclick="reset('extension')">↩ Réinitialiser</button></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let pluUrl = null;
+const results = {};
+
+function toggleV(id) {
+  const b = document.getElementById("vb-" + id);
+  const v = document.getElementById("v-" + id);
+  const open = b.style.display !== "none";
+  b.style.display = open ? "none" : "block";
+  v.classList.toggle("open", !open);
+}
+
+function checkAll() {
+  const ok = document.getElementById("zone").value.trim().length > 0;
+  ["destination","surelevation","extension"].forEach(id => {
+    const btn = document.getElementById("btn-" + id);
+    if (btn) btn.disabled = !ok;
+  });
+}
+
+async function findZone() {
+  const addr = document.getElementById("address").value.trim();
+  if (!addr) return;
+  const btn = document.getElementById("btnFind");
+  btn.disabled = true; btn.textContent = "⏳";
+  showGeo("load", "📍 Recherche en cours…");
+
+  try {
+    const r = await fetch("/api/zone", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({address: addr})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    if (d.zone) {
+      document.getElementById("zone").value = d.zone;
+      checkAll();
+      showGeo("ok", "✅ <strong>" + d.address + "</strong><br>Zone : <strong style=\"color:var(--teal);font-size:15px;\">" + d.zone + "</strong>");
+    } else {
+      showGeo("warn", "📍 " + d.address + "<br>⚠️ Zone non trouvée — renseignez-la manuellement.");
+    }
+    if (d.pluUrl) {
+      pluUrl = d.pluUrl;
+      const po = document.getElementById("pluOk");
+      po.innerHTML = "📄 PLU trouvé : <strong>" + (d.pluName || "Règlement") + "</strong>";
+      po.style.display = "block";
+    }
+  } catch(e) {
+    showGeo("err", "❌ " + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = "🔍 Trouver la zone";
+  }
+}
+
+function showGeo(type, html) {
+  const el = document.getElementById("geoBox");
+  const cls = {ok:"geo-box geo-ok", err:"geo-box geo-err", warn:"geo-box geo-load", load:"geo-box geo-load"};
+  el.className = cls[type];
+  el.innerHTML = html;
+  el.style.display = "block";
+}
+
+async function run(type) {
+  const zone = document.getElementById("zone").value.trim();
+  const errEl = document.getElementById("err-" + type);
+  const spEl  = document.getElementById("sp-" + type);
+  const resEl = document.getElementById("res-" + type);
+  const btnEl = document.getElementById("btn-" + type);
+
+  errEl.className = "err"; resEl.className = "res";
+  spEl.className = "spin show"; btnEl.disabled = true;
+
+  try {
+    const r = await fetch("/api/analyze", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({zone, analysisType: type, pluUrl})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    results[type] = d.result;
+    spEl.className = "spin";
+    document.getElementById("zt-" + type).textContent = "Zone " + zone;
+    document.getElementById("rb-" + type).innerHTML = md(d.result);
+    resEl.className = "res show";
+  } catch(e) {
+    spEl.className = "spin";
+    errEl.textContent = "⚠️ " + e.message;
+    errEl.className = "err show";
+    btnEl.disabled = false;
+  }
+}
+
+function md(s) {
+  let h = s
+    .replace(/^---$/gm,"<hr>").replace(/^## (.+)$/gm,"<h2>$1</h2>").replace(/^### (.+)$/gm,"<h3>$1</h3>")
+    .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\*(.+?)\*/g,"<em>$1</em>")
+    .replace(/^> (.+)$/gm,"<blockquote>$1</blockquote>")
+    .replace(/^[\-•] (.+)$/gm,"<li>$1</li>").replace(/^\d+\. (.+)$/gm,"<li>$1</li>");
+  h = h.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, m => "<ul>" + m + "</ul>");
+  h = h.split("\n").map(l => { l=l.trim(); if(!l) return ""; if(/^<(h[23]|ul|ol|blockquote|hr)/.test(l)) return l; return "<p>"+l+"</p>"; }).join("\n");
+  h = h.replace(/(✅[^\n<]+)/g,"<span class=\"v-ok\">$1</span>");
+  h = h.replace(/(⚠️[^\n<]+)/g,"<span class=\"v-warn\">$1</span>");
+  h = h.replace(/(❌[^\n<]+)/g,"<span class=\"v-nok\">$1</span>");
+  h = h.replace(/(❓[^\n<]+)/g,"<span class=\"v-unk\">$1</span>");
+  return h;
+}
+
+function copy(type) {
+  if (!results[type]) return;
+  navigator.clipboard.writeText(results[type]).then(() => {
+    const b = document.querySelector("#res-" + type + " .bsm.teal");
+    b.textContent = "✓ Copié !";
+    setTimeout(() => b.innerHTML = "📋 Copier", 2000);
+  });
+}
+
+function reset(type) {
+  results[type] = null;
+  document.getElementById("res-" + type).className = "res";
+  document.getElementById("err-" + type).className = "err";
+}
+</script>
+</body>
+</html>
