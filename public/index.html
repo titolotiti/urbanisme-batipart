@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Analyseur PLU — Batipart</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -32,7 +32,7 @@
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: "DM Sans", sans-serif;
+  font-family: "Geist", sans-serif;
   font-weight: 300;
   min-height: 100vh;
 }
@@ -116,9 +116,9 @@ body {
   transition: transform .25s, opacity .2s;
 }
 .topbar-title {
-  font-family: "DM Serif Display", serif;
-  font-size: 17px; font-weight: 400;
-  color: var(--ink); letter-spacing: -.01em;
+  font-family: "Geist", sans-serif;
+  font-size: 17px; font-weight: 600;
+  color: var(--ink); letter-spacing: -.02em;
 }
 
 /* ── PAGE LAYOUT ── */
@@ -150,8 +150,8 @@ body {
   flex-shrink: 0;
 }
 .card-hd h2 {
-  font-family: "DM Serif Display", serif;
-  font-size: 15px; font-weight: 400;
+  font-family: "Geist", sans-serif;
+  font-size: 15px; font-weight: 600;
   color: var(--ink);
 }
 .card-bd { padding: 16px 24px 24px; }
@@ -169,7 +169,7 @@ body {
   border: 1.5px solid var(--border);
   border-radius: var(--r-sm);
   padding: 10px 14px;
-  font-family: "DM Sans", sans-serif;
+  font-family: "Geist", sans-serif;
   font-size: 13.5px; color: var(--ink);
   outline: none;
   transition: border-color .18s, box-shadow .18s;
@@ -188,7 +188,7 @@ body {
   color: #fff; border: none;
   border-radius: var(--r-sm);
   padding: 10px 16px;
-  font-family: "DM Sans", sans-serif;
+  font-family: "Geist", sans-serif;
   font-size: 13px; font-weight: 500;
   cursor: pointer; white-space: nowrap;
   transition: opacity .18s;
@@ -262,7 +262,7 @@ body {
 .volet.open .volet-hd { background: var(--teal-light); border-radius: var(--r-sm) var(--r-sm) 0 0; }
 .vi { font-size: 18px; flex-shrink: 0; }
 .vinfo { flex: 1; }
-.vtitle { font-family: "DM Serif Display", serif; font-size: 14px; font-weight: 400; color: var(--ink); }
+.vtitle { font-family: "Geist", sans-serif; font-size: 14px; font-weight: 600; color: var(--ink); }
 .vsub { font-size: 11.5px; color: var(--ink3); margin-top: 2px; }
 .varrow { font-size: 20px; color: var(--ink3); transition: transform .25s; line-height: 1; }
 .volet.open .varrow { transform: rotate(90deg); color: var(--teal); }
@@ -277,7 +277,7 @@ body {
 .btn-go {
   width: 100%; background: var(--teal); color: #fff;
   border: none; border-radius: var(--r-sm);
-  padding: 13px; font-family: "DM Sans", sans-serif;
+  padding: 13px; font-family: "Geist", sans-serif;
   font-size: 14px; font-weight: 500; cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 7px;
   transition: opacity .18s;
@@ -310,11 +310,11 @@ body {
   padding: 14px 20px;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
-.res-top h3 { font-family: "DM Serif Display", serif; font-size: 15px; font-weight: 400; color: #fff; }
+.res-top h3 { font-family: "Geist", sans-serif; font-size: 15px; font-weight: 600; color: #fff; }
 .ztag { background: rgba(255,255,255,.2); color: #fff; font-size: 12px; font-weight: 500; padding: 3px 12px; border-radius: 99px; }
 .res-body { padding: 20px 22px; }
 .res-body h2 {
-  font-family: "DM Serif Display", serif; font-size: 16px; font-weight: 400;
+  font-family: "Geist", sans-serif; font-size: 15px; font-weight: 600;
   color: var(--ink); margin: 20px 0 8px;
   display: flex; align-items: center; gap: 8px;
 }
@@ -332,7 +332,7 @@ body {
 .v-nok { display: inline-block; background: var(--red); color: var(--red-dk); border-radius: 6px; padding: 2px 9px; font-weight: 500; font-size: 13px; }
 .v-unk { display: inline-block; background: var(--bg); color: var(--ink3); border-radius: 6px; padding: 2px 9px; font-weight: 500; font-size: 13px; }
 .res-foot { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; background: #faf9f7; }
-.bsm { border: 1.5px solid var(--border); background: var(--surface); border-radius: 6px; padding: 7px 14px; font-family: "DM Sans", sans-serif; font-size: 12px; cursor: pointer; color: var(--ink2); display: flex; align-items: center; gap: 5px; transition: background .15s; }
+.bsm { border: 1.5px solid var(--border); background: var(--surface); border-radius: 6px; padding: 7px 14px; font-family: "Geist", sans-serif; font-size: 12px; cursor: pointer; color: var(--ink2); display: flex; align-items: center; gap: 5px; transition: background .15s; }
 .bsm:hover { background: var(--bg); }
 .bsm.teal { border-color: var(--teal); color: var(--teal); }
 .bsm.teal:hover { background: var(--teal-light); }
