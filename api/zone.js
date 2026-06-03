@@ -16,6 +16,7 @@ export default async function handler(req, res) {
 
   // Base de données PLU par code INSEE — URLs vérifiées
   const PLU_DB = {
+    '75056': { url: 'https://data.geopf.fr/annexes/gpu/documents/DU_75056/048baf0750b3de3650b7d0cf81c530ce/75056_reglement_20240722.pdf', name: 'PLU Paris bioclimatique (Règlement)' },
     '92075': { url: 'https://www.suresnes.fr/wp-content/uploads/2024/07/4.1-Reglement-PLU-Suresnes-Modification-26-06-2024-V2.pdf', name: 'PLU Suresnes 2024' },
     '92020': { url: 'https://www.colombes.fr/app/uploads/2024/03/AR-2._Re__glement_modification_n.5_-_approb_07-12-2023-1.pdf', name: 'PLU Colombes 2023' },
     '94037': { url: 'https://www.ville-gentilly.fr/sites/default/files/modification_ndeg6_du_plu_-_reglement_ecrit.pdf', name: 'PLU Gentilly 2024' },
