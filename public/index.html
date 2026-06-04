@@ -2,435 +2,219 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Analyseur PLU — Batipart</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f7f6f3;--surface:#fff;--surface2:#faf9f7;
+  --ink:#1a1a1a;--ink2:#555;--ink3:#999;
+  --blue:#2C4A6E;--blue-light:#e8eef5;
+  --border:#e8e6e0;
+  --green-bg:#ecfdf5;--green-txt:#065f46;
+  --red-bg:#fef2f2;--red-txt:#991b1b;
+  --amber-bg:#fffbeb;--amber-txt:#92400e;
+  --r:14px;--r-sm:9px;
+  --shadow:0 2px 20px rgba(0,0,0,.06);
+}
+body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-weight:300;min-height:100vh}
 
-:root {
-  --bg: #f7f6f3;
-  --surface: #ffffff;
-  --ink: #1a1a1a;
-  --ink2: #555;
-  --ink3: #999;
-  --teal: #2C4A6E;
-  --teal-light: #eef2f8;
-  --border: #e8e6e0;
-  --green: #ecfdf5;
-  --green-dk: #065f46;
-  --red: #fef2f2;
-  --red-dk: #991b1b;
-  --amber: #fffbeb;
-  --amber-dk: #92400e;
-  --shadow: 0 2px 24px rgba(0,0,0,.06);
-  --r: 14px;
-  --r-sm: 9px;
-}
+/* overlay */
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(3px);z-index:40;opacity:0;pointer-events:none;transition:opacity .3s}
+#overlay.on{opacity:1;pointer-events:all}
 
-body {
-  background: var(--bg);
-  color: var(--ink);
-  font-family: "Geist", sans-serif;
-  font-weight: 300;
-  min-height: 100vh;
-}
+/* drawer */
+#drawer{position:fixed;top:0;left:0;bottom:0;width:256px;background:#1a1a1a;z-index:50;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);overflow-y:auto;display:flex;flex-direction:column}
+#drawer.on{transform:translateX(0)}
+.d-brand{padding:24px 20px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+.d-logo{background:#fff;border-radius:7px;padding:7px 11px;display:inline-block}
+.d-logo img{width:108px;height:auto;display:block}
+.d-sub{font-size:11px;color:rgba(255,255,255,.3);margin-top:9px;letter-spacing:.04em}
+.d-section{padding:18px 12px 4px}
+.d-label{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.25);padding:0 8px;margin-bottom:7px}
+.d-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;transition:background .15s;margin-bottom:2px}
+.d-item:hover:not(.soon){background:rgba(255,255,255,.07)}
+.d-item.active{background:rgba(44,74,110,.3)}
+.d-item.active .d-label2{color:#93c5fd}
+.d-item.soon{opacity:.35;cursor:default}
+.d-icon{width:28px;height:28px;background:rgba(255,255,255,.06);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:rgba(255,255,255,.5)}
+.d-label2{font-size:13px;color:rgba(255,255,255,.65)}
+.d-badge{margin-left:auto;background:rgba(255,255,255,.08);color:rgba(255,255,255,.3);font-size:10px;padding:2px 7px;border-radius:99px}
 
-/* ── DRAWER OVERLAY ── */
-.overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.35);
-  z-index: 40;
-  opacity: 0; pointer-events: none;
-  transition: opacity .3s;
-  backdrop-filter: blur(2px);
-}
-.overlay.open { opacity: 1; pointer-events: all; }
+/* topbar */
+.topbar{position:sticky;top:0;z-index:30;background:rgba(247,246,243,.93);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);height:54px;display:flex;align-items:center;padding:0 22px;gap:14px}
+.menu-btn{width:36px;height:36px;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border-radius:8px;transition:background .15s}
+.menu-btn:hover{background:var(--border)}
+.menu-btn span{display:block;width:18px;height:1.5px;background:var(--ink);border-radius:2px}
+.topbar-title{font-size:15px;font-weight:600;color:var(--ink)}
 
-/* ── DRAWER ── */
-.drawer {
-  position: fixed;
-  top: 0; left: 0; bottom: 0;
-  width: 260px;
-  background: #1a1a1a;
-  z-index: 50;
-  transform: translateX(-100%);
-  transition: transform .32s cubic-bezier(.4,0,.2,1);
-  display: flex; flex-direction: column;
-  overflow-y: auto;
-}
-.drawer.open { transform: translateX(0); }
+/* page */
+.page{max-width:660px;margin:0 auto;padding:32px 18px 80px}
 
-.drawer-brand {
-  padding: 28px 22px 20px;
-  border-bottom: 1px solid rgba(255,255,255,.08);
-}
-.drawer-logo { background: #fff; border-radius: 7px; padding: 8px 12px; display: inline-block; }
-.drawer-logo img { width: 110px; height: auto; display: block; }
-.drawer-sub { font-size: 11px; color: rgba(255,255,255,.35); margin-top: 10px; letter-spacing: .04em; }
+/* card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden}
+.card-hd{padding:18px 22px 0;display:flex;align-items:center;gap:10px}
+.card-num{width:22px;height:22px;background:var(--blue);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;flex-shrink:0}
+.card-hd h2{font-size:14px;font-weight:600;color:var(--ink)}
+.card-bd{padding:16px 22px 22px}
 
-.drawer-section { padding: 20px 14px 6px; }
-.drawer-label { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .1em; color: rgba(255,255,255,.3); padding: 0 8px; margin-bottom: 8px; }
+/* field */
+.field{margin-bottom:14px}
+.field:last-child{margin-bottom:0}
+label{display:block;font-size:11.5px;font-weight:500;color:var(--ink2);margin-bottom:6px}
+input[type=text]{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--r-sm);padding:10px 14px;font-family:'Geist',sans-serif;font-size:13.5px;color:var(--ink);outline:none;transition:border-color .18s,box-shadow .18s}
+input[type=text]:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(44,74,110,.1)}
+input[type=text]::placeholder{color:var(--ink3)}
 
-.drawer-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 10px; border-radius: 8px;
-  cursor: pointer; transition: background .15s;
-  margin-bottom: 2px; text-decoration: none;
-}
-.drawer-item:hover:not(.soon) { background: rgba(255,255,255,.07); }
-.drawer-item.active { background: rgba(44,74,110,.25); }
-.drawer-item.active .drawer-item-label { color: #5eead4; }
-.drawer-item.soon { opacity: .35; cursor: default; }
-.drawer-item-icon { width: 28px; height: 28px; background: rgba(255,255,255,.06); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
-.drawer-item-label { font-size: 13px; color: rgba(255,255,255,.7); }
-.drawer-item-badge { margin-left: auto; background: rgba(255,255,255,.08); color: rgba(255,255,255,.3); font-size: 10px; padding: 2px 7px; border-radius: 99px; }
+/* btn-find */
+.addr-row{display:flex;gap:8px}
+.btn-find{flex-shrink:0;background:var(--blue);color:#fff;border:none;border-radius:var(--r-sm);padding:10px 15px;font-family:'Geist',sans-serif;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;transition:opacity .18s}
+.btn-find:hover{opacity:.85}
+.btn-find:disabled{opacity:.45;cursor:not-allowed}
 
-/* ── TOPBAR ── */
-.topbar {
-  position: sticky; top: 0; z-index: 30;
-  background: rgba(247,246,243,.92);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
-  height: 56px;
-  display: flex; align-items: center;
-  padding: 0 24px;
-  gap: 16px;
-}
-.menu-btn {
-  width: 36px; height: 36px;
-  background: none; border: none;
-  cursor: pointer;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 5px;
-  border-radius: 8px;
-  transition: background .15s;
-  flex-shrink: 0;
-}
-.menu-btn:hover { background: var(--border); }
-.menu-btn span {
-  display: block; width: 18px; height: 1.5px;
-  background: var(--ink);
-  border-radius: 2px;
-  transition: transform .25s, opacity .2s;
-}
-.topbar-title {
-  font-family: "Geist", sans-serif;
-  font-size: 17px; font-weight: 600;
-  color: var(--ink); letter-spacing: -.02em;
-}
+/* geo box */
+.geo-box{display:none;margin-top:8px;border-radius:var(--r-sm);padding:10px 14px;font-size:13px;line-height:1.6}
+.geo-ok{background:var(--green-bg);border:1px solid #a7f3d0;color:var(--green-txt)}
+.geo-err{background:var(--red-bg);border:1px solid #fecaca;color:var(--red-txt)}
+.geo-load{background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8}
+.plu-ok{display:none;margin-top:8px;background:var(--green-bg);border:1px solid #a7f3d0;border-radius:var(--r-sm);padding:9px 14px;font-size:12.5px;color:var(--green-txt);line-height:1.6}
 
-/* ── PAGE LAYOUT ── */
-.page {
-  max-width: 680px;
-  margin: 0 auto;
-  padding: 36px 20px 80px;
-}
+/* section sep */
+.section-sep{display:flex;align-items:center;gap:10px;margin:18px 0 14px}
+.section-sep div{flex:1;height:1px;background:var(--border)}
+.section-sep span{font-size:11.5px;font-weight:500;color:var(--ink3);white-space:nowrap;background:var(--surface);padding:0 10px}
 
-/* ── CARD ── */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  box-shadow: var(--shadow);
-  margin-bottom: 16px;
-  overflow: hidden;
-}
-.card-hd {
-  padding: 20px 24px 0;
-  display: flex; align-items: center; gap: 10px;
-}
-.card-num {
-  width: 24px; height: 24px;
-  background: var(--teal);
-  border-radius: 6px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 500; color: #fff;
-  flex-shrink: 0;
-}
-.card-hd h2 {
-  font-family: "Geist", sans-serif;
-  font-size: 15px; font-weight: 600;
-  color: var(--ink);
-}
-.card-bd { padding: 16px 24px 24px; }
+/* input volets */
+.iv{border:1.5px solid var(--border);border-radius:var(--r);overflow:hidden;transition:border-color .2s;margin-bottom:10px}
+.iv.on{border-color:var(--blue)}
+.iv-hd{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;user-select:none;transition:background .15s}
+.iv-hd:hover{background:var(--surface2)}
+.iv.on .iv-hd{background:var(--blue-light)}
+.iv-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--ink3);transition:background .2s}
+.iv.on .iv-dot{background:var(--blue)}
+.iv-info{flex:1}
+.iv-title{font-size:13.5px;font-weight:600;color:var(--ink)}
+.iv-sub{font-size:11.5px;color:var(--ink3);margin-top:2px}
+.iv-arrow{font-size:18px;color:var(--ink3);transition:transform .25s;line-height:1}
+.iv.on .iv-arrow{transform:rotate(90deg);color:var(--blue)}
+.iv-bd{padding:4px 16px 16px;border-top:1.5px solid var(--blue-light);display:none}
+.iv.on .iv-bd{display:block}
 
-/* ── FIELDS ── */
-.field { margin-bottom: 14px; }
-.field:last-child { margin-bottom: 0; }
-.field label {
-  display: block; font-size: 11.5px; font-weight: 500;
-  color: var(--ink2); margin-bottom: 6px; letter-spacing: .01em;
-}
-.field input {
-  width: 100%;
-  background: #faf9f7;
-  border: 1.5px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 10px 14px;
-  font-family: "Geist", sans-serif;
-  font-size: 13.5px; color: var(--ink);
-  outline: none;
-  transition: border-color .18s, box-shadow .18s;
-}
-.field input:focus {
-  border-color: var(--teal);
-  box-shadow: 0 0 0 3px rgba(44,74,110,.1);
-}
-.field input::placeholder { color: var(--ink3); }
+/* drop zone */
+.drop{position:relative;border:1.5px dashed var(--border);border-radius:var(--r-sm);padding:24px 16px;text-align:center;cursor:pointer;background:var(--surface2);transition:all .2s;margin-top:6px}
+.drop:hover,.drop.over{border-color:var(--blue);background:var(--blue-light)}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.drop-lbl{font-size:13px;color:var(--ink2);margin-top:6px}
+.drop-sub{font-size:11.5px;color:var(--ink3);margin-top:2px}
+.file-tag{display:none;align-items:center;gap:6px;background:var(--green-bg);border-radius:6px;padding:5px 12px;font-size:12px;font-weight:500;color:var(--green-txt);width:fit-content;margin:8px auto 0}
+.btn-replace{display:flex;align-items:center;gap:6px;background:none;border:1.5px solid var(--border);border-radius:7px;padding:7px 13px;font-family:'Geist',sans-serif;font-size:12px;color:var(--ink3);cursor:pointer;transition:all .15s;margin-top:10px}
+.btn-replace:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-light)}
+.warn-box{background:#fdf8f0;border:1px solid #e8d5b0;border-radius:var(--r-sm);padding:11px 14px;font-size:12.5px;color:#8a6a2a;margin-bottom:10px}
 
-/* ── ADDR ROW ── */
-.addr-row { display: flex; gap: 8px; }
-.btn-find {
-  flex-shrink: 0;
-  background: var(--teal);
-  color: #fff; border: none;
-  border-radius: var(--r-sm);
-  padding: 10px 16px;
-  font-family: "Geist", sans-serif;
-  font-size: 13px; font-weight: 500;
-  cursor: pointer; white-space: nowrap;
-  transition: opacity .18s;
-}
-.btn-find:hover { opacity: .85; }
-.btn-find:disabled { opacity: .45; cursor: not-allowed; }
+/* analysis volets */
+.av{border:1.5px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:10px;transition:border-color .2s}
+.av.on{border-color:var(--blue)}
+.av-hd{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;user-select:none;background:var(--surface2);transition:background .15s}
+.av-hd:hover{background:var(--blue-light)}
+.av.on .av-hd{background:var(--blue-light)}
+.av-icon{width:32px;height:32px;border:1.5px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--ink3);transition:all .2s}
+.av.on .av-icon{border-color:var(--blue);color:var(--blue);background:#fff}
+.av-info{flex:1}
+.av-title{font-size:13.5px;font-weight:600;color:var(--ink)}
+.av-sub{font-size:11.5px;color:var(--ink3);margin-top:2px}
+.av-arrow{font-size:18px;color:var(--ink3);transition:transform .25s}
+.av.on .av-arrow{transform:rotate(90deg);color:var(--blue)}
+.av-bd{padding:14px;border-top:1.5px solid var(--blue-light);display:none}
+.av.on .av-bd{display:block}
 
-/* ── GEO BOX ── */
-.geo-box {
-  display: none; margin-top: 8px;
-  border-radius: var(--r-sm);
-  padding: 10px 14px; font-size: 13px; line-height: 1.6;
-}
-.geo-ok { background: var(--green); border: 1px solid #a7f3d0; color: var(--green-dk); }
-.geo-err { background: var(--red); border: 1px solid #fecaca; color: var(--red-dk); }
-.geo-load { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
-.plu-ok {
-  display: none; margin-top: 8px;
-  background: var(--green); border: 1px solid #a7f3d0;
-  border-radius: var(--r-sm);
-  padding: 9px 14px; font-size: 12.5px; color: var(--green-dk);
-  line-height: 1.6;
-}
+/* btn go */
+.btn-go{width:100%;background:var(--blue);color:#fff;border:none;border-radius:var(--r-sm);padding:12px;font-family:'Geist',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .18s}
+.btn-go:hover:not(:disabled){opacity:.85}
+.btn-go:disabled{background:var(--border);color:var(--ink3);cursor:not-allowed}
 
-/* ── SEP ── */
-.sep {
-  display: flex; align-items: center; gap: 10px;
-  margin: 4px 0 12px;
-}
-.sep div { flex: 1; height: 1px; background: var(--border); }
-.sep span { font-size: 11px; color: var(--ink3); white-space: nowrap; }
-
-/* ── DROP ZONE ── */
-.drop-zone {
-  position: relative;
-  border: 1.5px dashed var(--border);
-  border-radius: var(--r-sm);
-  padding: 28px 16px;
-  text-align: center; cursor: pointer;
-  background: #faf9f7;
-  transition: all .2s;
-}
-.drop-zone:hover, .drop-zone.over {
-  border-color: var(--teal);
-  background: var(--teal-light);
-}
-.drop-zone input[type="file"] {
-  position: absolute; inset: 0;
-  opacity: 0; cursor: pointer; width: 100%; height: 100%;
-}
-.drop-icon { font-size: 22px; margin-bottom: 6px; }
-.drop-label { font-size: 13px; color: var(--ink2); }
-.drop-sub { font-size: 11.5px; color: var(--ink3); margin-top: 2px; }
-.file-tag {
-  display: none; align-items: center; gap: 6px;
-  background: var(--green);
-  border-radius: 6px; padding: 5px 12px;
-  font-size: 12px; font-weight: 500; color: var(--green-dk);
-  width: fit-content; margin: 10px auto 0;
-}
-
-/* ── INPUT VOLETS ── */
-.input-volet {
-  border: 1.5px solid var(--border);
-  border-radius: var(--r);
-  overflow: hidden;
-  transition: border-color .2s;
-}
-.input-volet.open {
-  border-color: var(--teal);
-}
-.iv-hd {
-  display: flex; align-items: center; gap: 12px;
-  padding: 14px 16px; cursor: pointer;
-  transition: background .15s; user-select: none;
-}
-.iv-hd:hover { background: #faf9f7; }
-.input-volet.open .iv-hd { background: var(--teal-light); }
-.iv-dot {
-  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-}
-.iv-dot.auto { background: var(--teal); }
-.iv-dot.manual { background: var(--ink3); }
-.input-volet.open .iv-dot.manual { background: var(--teal); }
-.iv-info { flex: 1; }
-.iv-title { font-size: 13.5px; font-weight: 600; color: var(--ink); }
-.iv-sub { font-size: 11.5px; color: var(--ink3); margin-top: 2px; }
-.iv-arrow { font-size: 18px; color: var(--ink3); transition: transform .25s; line-height: 1; }
-.input-volet.open .iv-arrow { transform: rotate(90deg); color: var(--teal); }
-.iv-bd { padding: 4px 16px 16px; border-top: 1px solid var(--border); }
-.input-volet.open .iv-bd { border-top-color: var(--teal-light); }
-
-.btn-add-plu {
-  display: flex; align-items: center; gap: 6px;
-  background: none; border: 1.5px solid var(--border);
-  border-radius: 7px; padding: 7px 14px;
-  font-family: "Geist", sans-serif; font-size: 12px;
-  color: var(--ink3); cursor: pointer;
-  transition: all .15s;
-}
-.btn-add-plu:hover { border-color: var(--teal); color: var(--teal); background: var(--teal-light); }
-
-/* ── INPUT VOLETS ── */
-/* ── VOLETS ── */
-.volet { border-radius: var(--r-sm); overflow: hidden; margin-bottom: 8px; }
-.volet-hd {
-  display: flex; align-items: center; gap: 12px;
-  padding: 14px 16px; cursor: pointer;
-  background: #faf9f7; border-radius: var(--r-sm);
-  transition: background .15s; user-select: none;
-}
-.volet-hd:hover { background: var(--teal-light); }
-.volet.open .volet-hd { background: var(--teal-light); border-radius: var(--r-sm) var(--r-sm) 0 0; }
-.vi { font-size: 18px; flex-shrink: 0; color: var(--ink3); display:flex; align-items:center; }
-.vinfo { flex: 1; }
-.vtitle { font-family: "Geist", sans-serif; font-size: 14px; font-weight: 600; color: var(--ink); }
-.vsub { font-size: 11.5px; color: var(--ink3); margin-top: 2px; }
-.varrow { font-size: 20px; color: var(--ink3); transition: transform .25s; line-height: 1; }
-.volet.open .varrow { transform: rotate(90deg); color: var(--teal); }
-.volet-bd {
-  border: 1.5px solid var(--teal-light);
-  border-top: none;
-  border-radius: 0 0 var(--r-sm) var(--r-sm);
-  padding: 16px; background: var(--surface);
-}
-
-/* ── BTN GO ── */
-.btn-go {
-  width: 100%; background: var(--teal); color: #fff;
-  border: none; border-radius: var(--r-sm);
-  padding: 13px; font-family: "Geist", sans-serif;
-  font-size: 14px; font-weight: 500; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 7px;
-  transition: opacity .18s;
-}
-.btn-go:hover:not(:disabled) { opacity: .88; }
-.btn-go:disabled { background: var(--border); color: var(--ink3); cursor: not-allowed; }
-
-/* ── ERR / SPIN / RES ── */
-.err { display: none; background: var(--red); border: 1px solid #fecaca; border-radius: var(--r-sm); padding: 12px 16px; font-size: 13px; color: var(--red-dk); margin-top: 14px; }
-.err.show { display: block; }
-.spin { display: none; text-align: center; padding: 28px 0; }
-.spin.show { display: block; }
-.dots { display: flex; gap: 7px; justify-content: center; margin-bottom: 12px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); animation: bounce 1.2s infinite ease-in-out; }
-.dot:nth-child(2) { animation-delay: .2s; background: #3b6cb7; }
-.dot:nth-child(3) { animation-delay: .4s; background: #6366f1; }
-@keyframes bounce { 0%,80%,100%{transform:scale(.6);opacity:.4;}40%{transform:scale(1);opacity:1;} }
-.spin p { font-size: 13.5px; color: var(--ink2); }
-.spin small { font-size: 11.5px; color: var(--ink3); margin-top: 4px; display: block; }
-
-.res {
-  display: none; background: var(--surface);
-  border: 1px solid var(--border); border-radius: var(--r);
-  overflow: hidden; margin-top: 14px;
-  box-shadow: var(--shadow);
-}
-.res.show { display: block; }
-.res-top {
-  background: var(--teal);
-  padding: 14px 20px;
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-}
-.res-top h3 { font-family: "Geist", sans-serif; font-size: 15px; font-weight: 600; color: #fff; }
-.ztag { background: rgba(255,255,255,.2); color: #fff; font-size: 12px; font-weight: 500; padding: 3px 12px; border-radius: 99px; }
-.res-body { padding: 20px 22px; }
-.res-body h2 {
-  font-family: "Geist", sans-serif; font-size: 15px; font-weight: 600;
-  color: var(--ink); margin: 20px 0 8px;
-  display: flex; align-items: center; gap: 8px;
-}
-.res-body h2:first-child { margin-top: 0; }
-.res-body h2::before { content: ""; display: inline-block; width: 3px; height: 16px; background: var(--teal); border-radius: 2px; flex-shrink: 0; }
-.res-body h3 { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .08em; color: var(--ink3); margin: 16px 0 7px; }
-.res-body p { font-size: 13.5px; line-height: 1.8; color: var(--ink2); margin-bottom: 8px; }
-.res-body ul { padding-left: 16px; margin-bottom: 8px; }
-.res-body li { font-size: 13.5px; line-height: 1.75; color: var(--ink2); margin-bottom: 4px; }
-.res-body blockquote { background: #faf9f7; border-left: 3px solid var(--teal); padding: 9px 14px; margin: 10px 0; font-size: 12px; line-height: 1.7; color: #334155; border-radius: 0 5px 5px 0; }
-.res-body strong { font-weight: 500; color: var(--ink); }
-.res-body hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
-.v-ok { display: inline-block; background: var(--green); color: var(--green-dk); border-radius: 6px; padding: 2px 9px; font-weight: 500; font-size: 13px; }
-.v-warn { display: inline-block; background: var(--amber); color: var(--amber-dk); border-radius: 6px; padding: 2px 9px; font-weight: 500; font-size: 13px; }
-.v-nok { display: inline-block; background: var(--red); color: var(--red-dk); border-radius: 6px; padding: 2px 9px; font-weight: 500; font-size: 13px; }
-.v-unk { display: inline-block; background: var(--bg); color: var(--ink3); border-radius: 6px; padding: 2px 9px; font-weight: 500; font-size: 13px; }
-.res-foot { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; background: #faf9f7; }
-.bsm { border: 1.5px solid var(--border); background: var(--surface); border-radius: 6px; padding: 7px 14px; font-family: "Geist", sans-serif; font-size: 12px; cursor: pointer; color: var(--ink2); display: flex; align-items: center; gap: 5px; transition: background .15s; }
-.bsm:hover { background: var(--bg); }
-.bsm.teal { border-color: var(--teal); color: var(--teal); }
-.bsm.teal:hover { background: var(--teal-light); }
+/* err spin res */
+.err{display:none;background:var(--red-bg);border:1px solid #fecaca;border-radius:var(--r-sm);padding:12px 16px;font-size:13px;color:var(--red-txt);margin-top:12px}
+.err.on{display:block}
+.spin{display:none;text-align:center;padding:24px 0;margin-top:12px}
+.spin.on{display:block}
+.dots{display:flex;gap:7px;justify-content:center;margin-bottom:10px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--blue);animation:bop 1.2s infinite ease-in-out}
+.dot:nth-child(2){animation-delay:.2s;opacity:.7}
+.dot:nth-child(3){animation-delay:.4s;opacity:.4}
+@keyframes bop{0%,80%,100%{transform:scale(.6)}40%{transform:scale(1)}}
+.spin p{font-size:13px;color:var(--ink2)}
+.spin small{font-size:11.5px;color:var(--ink3);margin-top:3px;display:block}
+.res{display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-top:14px;box-shadow:var(--shadow)}
+.res.on{display:block}
+.res-top{background:var(--blue);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.res-top h3{font-size:14px;font-weight:600;color:#fff}
+.ztag{background:rgba(255,255,255,.2);color:#fff;font-size:11.5px;font-weight:500;padding:3px 11px;border-radius:99px}
+.res-body{padding:18px 20px}
+.res-body h2{font-size:14px;font-weight:600;color:var(--ink);margin:18px 0 7px;display:flex;align-items:center;gap:7px}
+.res-body h2:first-child{margin-top:0}
+.res-body h2::before{content:"";display:inline-block;width:3px;height:14px;background:var(--blue);border-radius:2px;flex-shrink:0}
+.res-body h3{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin:14px 0 6px}
+.res-body p{font-size:13.5px;line-height:1.8;color:var(--ink2);margin-bottom:7px}
+.res-body ul{padding-left:16px;margin-bottom:7px}
+.res-body li{font-size:13.5px;line-height:1.75;color:var(--ink2);margin-bottom:3px}
+.res-body blockquote{background:var(--surface2);border-left:3px solid var(--blue);padding:8px 13px;margin:9px 0;font-size:12px;line-height:1.7;color:#334155;border-radius:0 5px 5px 0}
+.res-body strong{font-weight:500;color:var(--ink)}
+.res-body hr{border:none;border-top:1px solid var(--border);margin:14px 0}
+.v-ok{display:inline-block;background:var(--green-bg);color:var(--green-txt);border-radius:6px;padding:2px 9px;font-weight:500;font-size:13px}
+.v-warn{display:inline-block;background:var(--amber-bg);color:var(--amber-txt);border-radius:6px;padding:2px 9px;font-weight:500;font-size:13px}
+.v-nok{display:inline-block;background:var(--red-bg);color:var(--red-txt);border-radius:6px;padding:2px 9px;font-weight:500;font-size:13px}
+.v-unk{display:inline-block;background:var(--bg);color:var(--ink3);border-radius:6px;padding:2px 9px;font-weight:500;font-size:13px}
+.res-foot{padding:11px 18px;border-top:1px solid var(--border);display:flex;gap:8px;background:var(--surface2)}
+.bsm{border:1.5px solid var(--border);background:var(--surface);border-radius:6px;padding:6px 13px;font-family:'Geist',sans-serif;font-size:12px;cursor:pointer;color:var(--ink2);display:flex;align-items:center;gap:5px;transition:background .15s}
+.bsm:hover{background:var(--bg)}
+.bsm.blue{border-color:var(--blue);color:var(--blue)}
+.bsm.blue:hover{background:var(--blue-light)}
 </style>
 </head>
 <body>
 
-<!-- OVERLAY -->
-<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+<div id="overlay" onclick="closeMenu()"></div>
 
-<!-- DRAWER -->
-<aside class="drawer" id="drawer">
-  <div class="drawer-brand">
-    <div class="drawer-logo">
-      <img src="data:image/webp;base64,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" alt="Batipart">
-    </div>
-    <div class="drawer-sub">Analyseur PLU · Île-de-France</div>
+<aside id="drawer">
+  <div class="d-brand">
+    <div class="d-logo"><img src="data:image/webp;base64,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" alt="Batipart"></div>
+    <div class="d-sub">Analyseur PLU · Île-de-France</div>
   </div>
-
-  <div class="drawer-section">
-    <div class="drawer-label">Analyse PLU</div>
-    <div class="drawer-item active">
-      <div class="drawer-item-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:rgba(255,255,255,.6)"><path d="M3 9h18M3 15h18M9 3v18"/></svg></div>
-      <span class="drawer-item-label">Analyses</span>
+  <div class="d-section">
+    <div class="d-label">Analyse PLU</div>
+    <div class="d-item active">
+      <div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h18M3 15h18M9 3v18"/></svg></div>
+      <span class="d-label2">Analyses</span>
     </div>
-    <div class="drawer-item soon">
-      <div class="drawer-item-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:rgba(255,255,255,.6)"><path d="M12 2v20M5 9l7-7 7 7"/></svg></div>
-      <span class="drawer-item-label">Gabarit & reculs</span>
-      <span class="drawer-item-badge">Bientôt</span>
+    <div class="d-item soon">
+      <div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M5 9l7-7 7 7"/></svg></div>
+      <span class="d-label2">Gabarit & reculs</span>
+      <span class="d-badge">Bientôt</span>
     </div>
-    <div class="drawer-item soon">
-      <div class="drawer-item-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:rgba(255,255,255,.6)"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/></svg></div>
-      <span class="drawer-item-label">Stationnement</span>
-      <span class="drawer-item-badge">Bientôt</span>
+    <div class="d-item soon">
+      <div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/></svg></div>
+      <span class="d-label2">Stationnement</span>
+      <span class="d-badge">Bientôt</span>
     </div>
   </div>
-
-  <div class="drawer-section">
-    <div class="drawer-label">Documents</div>
-    <div class="drawer-item soon">
-      <div class="drawer-item-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:rgba(255,255,255,.6)"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
-      <span class="drawer-item-label">Note de synthèse</span>
-      <span class="drawer-item-badge">Bientôt</span>
+  <div class="d-section">
+    <div class="d-label">Documents</div>
+    <div class="d-item soon">
+      <div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+      <span class="d-label2">Note de synthèse</span>
+      <span class="d-badge">Bientôt</span>
     </div>
   </div>
 </aside>
 
-<!-- TOPBAR -->
 <header class="topbar">
-  <button class="menu-btn" id="menuBtn" onclick="toggleDrawer()" aria-label="Menu">
+  <button class="menu-btn" onclick="toggleMenu()">
     <span></span><span></span><span></span>
   </button>
   <span class="topbar-title">Analyses PLU</span>
 </header>
 
-<!-- MAIN -->
 <main class="page">
 
   <!-- ÉTAPE 1 -->
@@ -439,89 +223,86 @@ body {
       <div class="card-num">1</div>
       <h2>Adresse et zone PLU</h2>
     </div>
-    <div class="card-bd" style="padding-top:20px;">
+    <div class="card-bd">
 
-      <!-- VOLET AUTOMATIQUE -->
-      <div class="input-volet open" id="iv-auto">
+      <!-- Automatique -->
+      <div class="iv on" id="iv-auto">
         <div class="iv-hd" onclick="toggleIV('auto')">
-          <div class="iv-dot auto"></div>
+          <div class="iv-dot"></div>
           <div class="iv-info">
             <div class="iv-title">Automatique</div>
-            <div class="iv-sub">Détection de la zone et du PLU via l'adresse</div>
+            <div class="iv-sub">Zone et PLU détectés depuis l'adresse</div>
           </div>
           <div class="iv-arrow">›</div>
         </div>
-        <div class="iv-bd" id="ivbd-auto">
-          <div class="field" style="margin-bottom:0;">
+        <div class="iv-bd">
+          <div class="field" style="margin-top:4px;margin-bottom:0">
             <label>Adresse du bien</label>
             <div class="addr-row">
-              <input type="text" id="address" placeholder="ex : 14 rue de Mantes, Colombes" oninput="checkAll()">
-              <button class="btn-find" id="btnFind" onclick="findZone()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Trouver</button>
+              <input type="text" id="address" placeholder="ex : 14 rue de Mantes, Colombes">
+              <button class="btn-find" id="btnFind" onclick="findZone()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                Trouver
+              </button>
             </div>
             <div class="geo-box" id="geoBox"></div>
           </div>
-
-          <!-- PLU trouvé ou non -->
-          <div id="pluFoundBox" style="display:none;margin-top:12px;">
+          <div id="pluFoundBox" style="display:none;margin-top:10px">
             <div class="plu-ok" id="pluOk"></div>
-          </div>
-
-          <div id="pluMissingBox" style="display:none;margin-top:12px;">
-            <div style="background:#f8f4ef;border:1px solid #e8dfd3;border-radius:9px;padding:12px 14px;font-size:12.5px;color:#7c6a52;margin-bottom:10px;">
-              ⚠️ PLU non trouvé automatiquement pour cette commune
-            </div>
-            <div class="drop-zone" id="dropZone">
-              <input type="file" id="pluFile" accept=".pdf">
-              <div class="drop-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--ink3)"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div>
-              <div class="drop-label">Glissez le règlement PLU ici ou cliquez</div>
-              <div class="drop-sub">Format PDF uniquement</div>
-              <div class="file-tag" id="fileTag"></div>
-            </div>
-          </div>
-
-          <!-- Bouton optionnel pour ajouter PLU même si trouvé -->
-          <div id="pluAddBtn" style="display:none;margin-top:10px;">
-            <button class="btn-add-plu" onclick="showPluUpload()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Remplacer par un autre PLU
-            </button>
-            <div id="pluAddZone" style="display:none;margin-top:10px;">
-              <div class="drop-zone" id="dropZone2">
-                <input type="file" id="pluFile2" accept=".pdf">
-                <div class="drop-label">Glissez le PDF ici ou cliquez</div>
-                <div class="file-tag" id="fileTag2"></div>
+            <div id="pluReplaceBox" style="display:none">
+              <button class="btn-replace" onclick="showReplace()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Remplacer par un autre PLU
+              </button>
+              <div id="replaceZone" style="display:none">
+                <div class="drop" id="drop2">
+                  <input type="file" id="file2" accept=".pdf">
+                  <div class="drop-lbl">Glissez le PDF ici ou cliquez</div>
+                  <div class="file-tag" id="tag2"></div>
+                </div>
               </div>
             </div>
           </div>
-
+          <div id="pluMissingBox" style="display:none;margin-top:10px">
+            <div class="warn-box">⚠️ PLU non trouvé automatiquement pour cette commune</div>
+            <div class="drop" id="drop1">
+              <input type="file" id="file1" accept=".pdf">
+              <div class="drop-lbl">Glissez le règlement PLU ici ou cliquez</div>
+              <div class="drop-sub">Format PDF uniquement</div>
+              <div class="file-tag" id="tag1"></div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div style="height:10px;"></div>
+      <div class="section-sep">
+        <div></div>
+        <span>ou</span>
+        <div></div>
+      </div>
 
-      <!-- VOLET MANUEL -->
-      <div class="input-volet" id="iv-manual">
+      <!-- Manuel -->
+      <div class="iv" id="iv-manual">
         <div class="iv-hd" onclick="toggleIV('manual')">
-          <div class="iv-dot manual"></div>
+          <div class="iv-dot"></div>
           <div class="iv-info">
             <div class="iv-title">Manuel</div>
             <div class="iv-sub">Renseigner la zone et uploader le règlement</div>
           </div>
           <div class="iv-arrow">›</div>
         </div>
-        <div class="iv-bd" id="ivbd-manual" style="display:none;">
-          <div class="field">
+        <div class="iv-bd">
+          <div class="field" style="margin-top:4px">
             <label>Zone PLU</label>
             <input type="text" id="zone" placeholder="ex : UBc · UG · UA · UM" oninput="checkAll()">
           </div>
-          <div class="field" style="margin-bottom:0;">
+          <div class="field" style="margin-bottom:0">
             <label>Règlement PLU — fichier PDF</label>
-            <div class="drop-zone" id="dropZoneM">
-              <input type="file" id="pluFileM" accept=".pdf">
-              <div class="drop-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--ink3)"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div>
-              <div class="drop-label">Glissez le règlement PLU ici ou cliquez</div>
+            <div class="drop" id="dropM">
+              <input type="file" id="fileM" accept=".pdf">
+              <div class="drop-lbl">Glissez le règlement PLU ici ou cliquez</div>
               <div class="drop-sub">Format PDF uniquement</div>
-              <div class="file-tag" id="fileTagM"></div>
+              <div class="file-tag" id="tagM"></div>
             </div>
           </div>
         </div>
@@ -531,76 +312,81 @@ body {
   </div>
 
   <!-- ÉTAPE 2 -->
-  <div class="card" style="overflow:visible;">
+  <div class="card">
     <div class="card-hd">
       <div class="card-num">2</div>
       <h2>Choisissez votre analyse</h2>
     </div>
-    <div class="card-bd" style="padding-top:14px;">
+    <div class="card-bd" style="padding-top:14px">
 
-      <div class="volet" id="v-destination">
-        <div class="volet-hd" onclick="toggleV('destination')">
-          <div class="vi"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 15h18M9 3v18"/></svg></div>
-          <div class="vinfo">
-            <div class="vtitle">Changement de destination</div>
-            <div class="vsub">Bureaux → Logements · Bâtiment existant</div>
+      <div class="av" id="av-destination">
+        <div class="av-hd" onclick="toggleAV('destination')">
+          <div class="av-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9h18M3 15h18M9 3v18"/></svg></div>
+          <div class="av-info">
+            <div class="av-title">Changement de destination</div>
+            <div class="av-sub">Bureaux → Logements · Bâtiment existant</div>
           </div>
-          <div class="varrow">›</div>
+          <div class="av-arrow">›</div>
         </div>
-        <div class="volet-bd" id="vb-destination" style="display:none;">
-          <button class="btn-go" id="btn-destination" onclick="run('destination')" disabled>Lancer l'analyse</button>
+        <div class="av-bd">
+          <button class="btn-go" id="btn-destination" onclick="runAnalysis('destination')" disabled>Lancer l'analyse</button>
           <div class="err" id="err-destination"></div>
           <div class="spin" id="sp-destination"><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><p>Analyse en cours…</p><small>Lecture du règlement · Rédaction</small></div>
           <div class="res" id="res-destination">
             <div class="res-top"><h3>Changement de destination</h3><span class="ztag" id="zt-destination"></span></div>
             <div class="res-body" id="rb-destination"></div>
-            <div class="res-foot"><button class="bsm teal" onclick="copy('destination')">📋 Copier</button><button class="bsm" onclick="resetR('destination')">↩ Réinitialiser</button></div>
+            <div class="res-foot">
+              <button class="bsm blue" onclick="copyR('destination')">📋 Copier</button>
+              <button class="bsm" onclick="resetR('destination')">↩ Réinitialiser</button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div style="height:8px;"></div>
-
-      <div class="volet" id="v-surelevation">
-        <div class="volet-hd" onclick="toggleV('surelevation')">
-          <div class="vi"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M5 9l7-7 7 7"/></svg></div>
-          <div class="vinfo">
-            <div class="vtitle">Surélévation</div>
-            <div class="vsub">Ajout d'étages · Hauteur max · Gabarit</div>
+      <div class="av" id="av-surelevation">
+        <div class="av-hd" onclick="toggleAV('surelevation')">
+          <div class="av-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M5 9l7-7 7 7"/></svg></div>
+          <div class="av-info">
+            <div class="av-title">Surélévation</div>
+            <div class="av-sub">Ajout d'étages · Hauteur max · Gabarit</div>
           </div>
-          <div class="varrow">›</div>
+          <div class="av-arrow">›</div>
         </div>
-        <div class="volet-bd" id="vb-surelevation" style="display:none;">
-          <button class="btn-go" id="btn-surelevation" onclick="run('surelevation')" disabled>Lancer l'analyse</button>
+        <div class="av-bd">
+          <button class="btn-go" id="btn-surelevation" onclick="runAnalysis('surelevation')" disabled>Lancer l'analyse</button>
           <div class="err" id="err-surelevation"></div>
           <div class="spin" id="sp-surelevation"><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><p>Analyse en cours…</p><small>Lecture du règlement · Rédaction</small></div>
           <div class="res" id="res-surelevation">
             <div class="res-top"><h3>Surélévation</h3><span class="ztag" id="zt-surelevation"></span></div>
             <div class="res-body" id="rb-surelevation"></div>
-            <div class="res-foot"><button class="bsm teal" onclick="copy('surelevation')">📋 Copier</button><button class="bsm" onclick="resetR('surelevation')">↩ Réinitialiser</button></div>
+            <div class="res-foot">
+              <button class="bsm blue" onclick="copyR('surelevation')">📋 Copier</button>
+              <button class="bsm" onclick="resetR('surelevation')">↩ Réinitialiser</button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div style="height:8px;"></div>
-
-      <div class="volet" id="v-extension">
-        <div class="volet-hd" onclick="toggleV('extension')">
-          <div class="vi"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/><path d="M13 7h4v4M11 17H7v-4"/></svg></div>
-          <div class="vinfo">
-            <div class="vtitle">Extension</div>
-            <div class="vsub">Agrandissement · Emprise au sol · Reculs</div>
+      <div class="av" id="av-extension">
+        <div class="av-hd" onclick="toggleAV('extension')">
+          <div class="av-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/><path d="M13 7h4v4M11 17H7v-4"/></svg></div>
+          <div class="av-info">
+            <div class="av-title">Extension</div>
+            <div class="av-sub">Agrandissement · Emprise au sol · Reculs</div>
           </div>
-          <div class="varrow">›</div>
+          <div class="av-arrow">›</div>
         </div>
-        <div class="volet-bd" id="vb-extension" style="display:none;">
-          <button class="btn-go" id="btn-extension" onclick="run('extension')" disabled>Lancer l'analyse</button>
+        <div class="av-bd">
+          <button class="btn-go" id="btn-extension" onclick="runAnalysis('extension')" disabled>Lancer l'analyse</button>
           <div class="err" id="err-extension"></div>
           <div class="spin" id="sp-extension"><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><p>Analyse en cours…</p><small>Lecture du règlement · Rédaction</small></div>
           <div class="res" id="res-extension">
             <div class="res-top"><h3>Extension</h3><span class="ztag" id="zt-extension"></span></div>
             <div class="res-body" id="rb-extension"></div>
-            <div class="res-foot"><button class="bsm teal" onclick="copy('extension')">📋 Copier</button><button class="bsm" onclick="resetR('extension')">↩ Réinitialiser</button></div>
+            <div class="res-foot">
+              <button class="bsm blue" onclick="copyR('extension')">📋 Copier</button>
+              <button class="bsm" onclick="resetR('extension')">↩ Réinitialiser</button>
+            </div>
           </div>
         </div>
       </div>
@@ -610,235 +396,172 @@ body {
 </main>
 
 <script>
-// ── DRAWER ──
-function toggleDrawer() {
-  document.getElementById("drawer").classList.toggle("open");
-  document.getElementById("overlay").classList.toggle("open");
-}
-function closeDrawer() {
-  document.getElementById("drawer").classList.remove("open");
-  document.getElementById("overlay").classList.remove("open");
-}
-
-// ── STATE ──
-let pluUrl = null;
-let pluBase64 = null;
+// STATE
+let pluUrl = null, pluBase64 = null;
 const results = {};
 
-// ── INPUT VOLETS (auto/manual) ──
+// DRAWER
+function toggleMenu() {
+  document.getElementById('drawer').classList.toggle('on');
+  document.getElementById('overlay').classList.toggle('on');
+}
+function closeMenu() {
+  document.getElementById('drawer').classList.remove('on');
+  document.getElementById('overlay').classList.remove('on');
+}
+
+// INPUT VOLETS
 function toggleIV(id) {
-  const volet = document.getElementById("iv-" + id);
-  const bd = document.getElementById("ivbd-" + id);
-  const isOpen = volet.classList.contains("open");
-  volet.classList.toggle("open", !isOpen);
-  bd.style.display = isOpen ? "none" : "block";
+  const el = document.getElementById('iv-' + id);
+  el.classList.toggle('on');
 }
 
-// ── ANALYSIS VOLETS ──
-function toggleV(id) {
-  const b = document.getElementById("vb-" + id);
-  const v = document.getElementById("v-" + id);
-  const open = b.style.display !== "none";
-  b.style.display = open ? "none" : "block";
-  v.classList.toggle("open", !open);
+// ANALYSIS VOLETS
+function toggleAV(id) {
+  const el = document.getElementById('av-' + id);
+  el.classList.toggle('on');
 }
 
-// ── CHECK READY ──
+// CHECK READY
 function checkAll() {
-  const zoneEl = document.getElementById("zone");
-  const ok = zoneEl && zoneEl.value.trim().length > 0;
-  ["destination","surelevation","extension"].forEach(id => {
-    const btn = document.getElementById("btn-" + id);
-    if (btn) btn.disabled = !ok;
+  const z = document.getElementById('zone');
+  const ok = z && z.value.trim().length > 0;
+  ['destination','surelevation','extension'].forEach(id => {
+    const b = document.getElementById('btn-' + id);
+    if (b) b.disabled = !ok;
   });
 }
 
-// ── GEO BOX ──
+// GEO
 function showGeo(type, html) {
-  const el = document.getElementById("geoBox");
-  const cls = {ok:"geo-box geo-ok", err:"geo-box geo-err", warn:"geo-box geo-load", load:"geo-box geo-load"};
-  el.className = cls[type] || "geo-box geo-load";
+  const el = document.getElementById('geoBox');
+  el.className = {ok:'geo-box geo-ok',err:'geo-box geo-err',warn:'geo-box geo-load',load:'geo-box geo-load'}[type];
   el.innerHTML = html;
-  el.style.display = "block";
+  el.style.display = 'block';
 }
 
-// ── FIND ZONE ──
+// FIND ZONE
 async function findZone() {
-  const addr = document.getElementById("address").value.trim();
+  const addr = document.getElementById('address').value.trim();
   if (!addr) return;
-  const btn = document.getElementById("btnFind");
+  const btn = document.getElementById('btnFind');
   btn.disabled = true;
-  btn.innerHTML = "⏳";
-  showGeo("load", "📍 Recherche en cours…");
-
+  btn.textContent = '⏳';
+  showGeo('load', '📍 Recherche en cours…');
   try {
-    const r = await fetch("/api/zone", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({address: addr})
-    });
+    const r = await fetch('/api/zone', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({address:addr})});
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);
-
     if (d.zone) {
-      const zoneEl = document.getElementById("zone");
-      if (zoneEl) zoneEl.value = d.zone;
-      checkAll();
-      showGeo("ok", "✅ <strong>" + d.address + "</strong><br>Zone : <strong style='color:var(--teal);font-size:15px;'>" + d.zone + "</strong>");
+      const zEl = document.getElementById('zone');
+      if (zEl) { zEl.value = d.zone; checkAll(); }
+      showGeo('ok', '✅ <strong>' + d.address + '</strong><br>Zone : <strong style="color:var(--blue);font-size:15px">' + d.zone + '</strong>');
     } else {
-      showGeo("warn", "📍 " + d.address + "<br>⚠️ Zone non trouvée — renseignez-la manuellement.");
+      showGeo('warn', '📍 ' + d.address + '<br>⚠️ Zone non trouvée — renseignez manuellement.');
     }
-
     if (d.pluUrl) {
       pluUrl = d.pluUrl;
-      const po = document.getElementById("pluOk");
-      po.innerHTML = "📄 <strong>" + (d.pluName || "Règlement PLU") + "</strong> &nbsp;<a href='" + d.pluUrl + "' target='_blank' style='color:#065f46;font-size:12px;'>↗ Télécharger</a>";
-      po.style.display = "block";
-      const pluFoundBox = document.getElementById("pluFoundBox");
-      const pluMissingBox = document.getElementById("pluMissingBox");
-      const pluAddBtn = document.getElementById("pluAddBtn");
-      if (pluFoundBox) pluFoundBox.style.display = "block";
-      if (pluMissingBox) pluMissingBox.style.display = "none";
-      if (pluAddBtn) pluAddBtn.style.display = "block";
+      const po = document.getElementById('pluOk');
+      po.innerHTML = '📄 <strong>' + (d.pluName||'Règlement PLU') + '</strong> &nbsp;<a href="' + d.pluUrl + '" target="_blank" style="color:var(--green-txt);font-size:12px">↗ Télécharger</a>';
+      po.style.display = 'block';
+      document.getElementById('pluFoundBox').style.display = 'block';
+      document.getElementById('pluMissingBox').style.display = 'none';
+      document.getElementById('pluReplaceBox').style.display = 'block';
     } else {
-      const pluFoundBox = document.getElementById("pluFoundBox");
-      const pluMissingBox = document.getElementById("pluMissingBox");
-      if (pluFoundBox) pluFoundBox.style.display = "none";
-      if (pluMissingBox) pluMissingBox.style.display = "block";
+      document.getElementById('pluFoundBox').style.display = 'none';
+      document.getElementById('pluMissingBox').style.display = 'block';
     }
   } catch(e) {
-    showGeo("err", "❌ " + e.message);
+    showGeo('err', '❌ ' + e.message);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Trouver';
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Trouver';
   }
 }
 
-// ── SHOW PLU UPLOAD ──
-function showPluUpload() {
-  const zone = document.getElementById("pluAddZone");
-  if (zone) zone.style.display = "block";
-  const btn = document.querySelector(".btn-add-plu");
-  if (btn) btn.style.display = "none";
+function showReplace() {
+  document.getElementById('replaceZone').style.display = 'block';
+  event.target.closest('.btn-replace').style.display = 'none';
 }
 
-// ── RUN ANALYSIS ──
-async function run(type) {
-  const zoneEl = document.getElementById("zone");
-  const zone = zoneEl ? zoneEl.value.trim() : "";
+// RUN ANALYSIS
+async function runAnalysis(type) {
+  const zEl = document.getElementById('zone');
+  const zone = zEl ? zEl.value.trim() : '';
   if (!zone) return;
-
-  const errEl = document.getElementById("err-" + type);
-  const spEl  = document.getElementById("sp-" + type);
-  const resEl = document.getElementById("res-" + type);
-  const btnEl = document.getElementById("btn-" + type);
-
-  errEl.className = "err";
-  resEl.className = "res";
-  spEl.className = "spin show";
-  btnEl.disabled = true;
-
+  const errEl = document.getElementById('err-' + type);
+  const spEl = document.getElementById('sp-' + type);
+  const resEl = document.getElementById('res-' + type);
+  const btnEl = document.getElementById('btn-' + type);
+  errEl.className = 'err'; resEl.className = 'res';
+  spEl.className = 'spin on'; btnEl.disabled = true;
   try {
-    const r = await fetch("/api/analyze", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({zone, analysisType: type, pluUrl, pluBase64})
-    });
+    const r = await fetch('/api/analyze', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zone,analysisType:type,pluUrl,pluBase64})});
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);
     results[type] = d.result;
-    spEl.className = "spin";
-    document.getElementById("zt-" + type).textContent = "Zone " + zone;
-    document.getElementById("rb-" + type).innerHTML = md(d.result);
-    resEl.className = "res show";
+    spEl.className = 'spin';
+    document.getElementById('zt-' + type).textContent = 'Zone ' + zone;
+    document.getElementById('rb-' + type).innerHTML = mdParse(d.result);
+    resEl.className = 'res on';
   } catch(e) {
-    spEl.className = "spin";
-    errEl.textContent = "⚠️ " + e.message;
-    errEl.className = "err show";
+    spEl.className = 'spin';
+    errEl.textContent = '⚠️ ' + e.message;
+    errEl.className = 'err on';
     btnEl.disabled = false;
   }
 }
 
-// ── MARKDOWN ──
-function md(s) {
+// MARKDOWN
+function mdParse(s) {
   let h = s
-    .replace(/^---$/gm,"<hr>")
-    .replace(/^## (.+)$/gm,"<h2>$1</h2>")
-    .replace(/^### (.+)$/gm,"<h3>$1</h3>")
-    .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g,"<em>$1</em>")
-    .replace(/^> (.+)$/gm,"<blockquote>$1</blockquote>")
-    .replace(/^[\-•] (.+)$/gm,"<li>$1</li>")
-    .replace(/^\d+\. (.+)$/gm,"<li>$1</li>");
-  h = h.replace(/(<li>[\s\S]*?<\/li>
-?)+/g, m => "<ul>" + m + "</ul>");
-  h = h.split("
-").map(l => { l=l.trim(); if(!l) return ""; if(/^<(h[23]|ul|ol|blockquote|hr)/.test(l)) return l; return "<p>"+l+"</p>"; }).join("
-");
-  h = h.replace(/(✅[^
-<]+)/g,'<span class="v-ok">$1</span>');
-  h = h.replace(/(⚠️[^
-<]+)/g,'<span class="v-warn">$1</span>');
-  h = h.replace(/(❌[^
-<]+)/g,'<span class="v-nok">$1</span>');
-  h = h.replace(/(❓[^
-<]+)/g,'<span class="v-unk">$1</span>');
+    .replace(/^---$/gm,'<hr>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^### (.+)$/gm,'<h3>$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>')
+    .replace(/^[\-•] (.+)$/gm,'<li>$1</li>').replace(/^\d+\. (.+)$/gm,'<li>$1</li>');
+  h = h.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, m => '<ul>'+m+'</ul>');
+  h = h.split('\n').map(l=>{l=l.trim();if(!l)return'';if(/^<(h[23]|ul|blockquote|hr)/.test(l))return l;return '<p>'+l+'</p>';}).join('\n');
+  h = h.replace(/(✅[^\n<]+)/g,'<span class="v-ok">$1</span>').replace(/(⚠️[^\n<]+)/g,'<span class="v-warn">$1</span>').replace(/(❌[^\n<]+)/g,'<span class="v-nok">$1</span>').replace(/(❓[^\n<]+)/g,'<span class="v-unk">$1</span>');
   return h;
 }
 
-// ── COPY / RESET ──
-function copy(type) {
+// COPY / RESET
+function copyR(type) {
   if (!results[type]) return;
   navigator.clipboard.writeText(results[type]).then(() => {
-    const b = document.querySelector("#res-" + type + " .bsm.teal");
-    b.textContent = "✓ Copié !";
-    setTimeout(() => b.innerHTML = "📋 Copier", 2000);
+    const b = document.querySelector('#res-'+type+' .bsm.blue');
+    b.textContent = '✓ Copié !';
+    setTimeout(() => b.innerHTML = '📋 Copier', 2000);
   });
 }
-
 function resetR(type) {
   results[type] = null;
-  document.getElementById("res-" + type).className = "res";
-  document.getElementById("err-" + type).className = "err";
+  document.getElementById('res-'+type).className = 'res';
+  document.getElementById('err-'+type).className = 'err';
 }
 
-// ── FILE UPLOADS ──
-function loadPdf(file, tagId) {
-  if (!file || file.type !== "application/pdf") return;
-  const tid = tagId || "fileTag";
-  const ft = document.getElementById(tid);
-  if (ft) { ft.textContent = "✓ " + file.name; ft.style.display = "flex"; }
-  const r = new FileReader();
-  r.onload = e => { pluBase64 = e.target.result.split(",")[1]; checkAll(); };
-  r.readAsDataURL(file);
+// FILE UPLOADS
+function loadFile(file, tagId) {
+  if (!file || file.type !== 'application/pdf') return;
+  const ft = document.getElementById(tagId);
+  if (ft) { ft.textContent = '✓ ' + file.name; ft.style.display = 'flex'; }
+  const reader = new FileReader();
+  reader.onload = e => { pluBase64 = e.target.result.split(',')[1]; checkAll(); };
+  reader.readAsDataURL(file);
 }
-
-document.addEventListener("DOMContentLoaded", () => {
-  // Auto section uploads
-  ["pluFile", "pluFile2"].forEach(fid => {
-    const el = document.getElementById(fid);
-    if (el) el.addEventListener("change", e => loadPdf(e.target.files[0]));
-  });
-
-  // Manual section upload
-  const pluFileM = document.getElementById("pluFileM");
-  if (pluFileM) pluFileM.addEventListener("change", e => loadPdf(e.target.files[0], "fileTagM"));
-
-  // Drag & drop for all drop zones
-  ["dropZone", "dropZone2", "dropZoneM"].forEach(zid => {
-    const dz = document.getElementById(zid);
-    if (!dz) return;
-    dz.addEventListener("dragover", e => { e.preventDefault(); dz.classList.add("over"); });
-    dz.addEventListener("dragleave", () => dz.classList.remove("over"));
-    dz.addEventListener("drop", e => {
-      e.preventDefault(); dz.classList.remove("over");
-      const f = e.dataTransfer.files[0];
-      if (f?.type === "application/pdf") {
-        const tagId = zid === "dropZoneM" ? "fileTagM" : "fileTag";
-        loadPdf(f, tagId);
-      }
-    });
-  });
+function setupDrop(dropId, fileId, tagId) {
+  const dz = document.getElementById(dropId);
+  const fi = document.getElementById(fileId);
+  if (!dz || !fi) return;
+  fi.addEventListener('change', e => loadFile(e.target.files[0], tagId));
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); loadFile(e.dataTransfer.files[0], tagId); });
+}
+document.addEventListener('DOMContentLoaded', () => {
+  setupDrop('drop1', 'file1', 'tag1');
+  setupDrop('drop2', 'file2', 'tag2');
+  setupDrop('dropM', 'fileM', 'tagM');
 });
 </script>
 </body>
