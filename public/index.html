@@ -610,7 +610,7 @@ body {
 </main>
 
 <script>
-// Drawer
+// ── DRAWER ──
 function toggleDrawer() {
   document.getElementById("drawer").classList.toggle("open");
   document.getElementById("overlay").classList.toggle("open");
@@ -620,80 +620,21 @@ function closeDrawer() {
   document.getElementById("overlay").classList.remove("open");
 }
 
-
+// ── STATE ──
 let pluUrl = null;
 let pluBase64 = null;
 const results = {};
 
-// Input volets (auto/manual)
+// ── INPUT VOLETS (auto/manual) ──
 function toggleIV(id) {
   const volet = document.getElementById("iv-" + id);
   const bd = document.getElementById("ivbd-" + id);
   const isOpen = volet.classList.contains("open");
-  if (!isOpen) {
-    volet.classList.add("open");
-    bd.style.display = "block";
-  } else {
-    volet.classList.remove("open");
-    bd.style.display = "none";
-  }
+  volet.classList.toggle("open", !isOpen);
+  bd.style.display = isOpen ? "none" : "block";
 }
 
-function showPluUpload() {
-  document.getElementById("pluAddZone").style.display = "block";
-  document.getElementById("pluAddBtn").querySelector("button") && 
-    (document.getElementById("pluAddBtn").querySelector(".btn-add-plu").style.display = "none");
-}
-
-// Override findZone to show/hide PLU boxes
-findZone = async function() {
-};
-
-// Override showGeo to also manage PLU boxes
-showGeo = function(type, html) {
-};
-
-
-
-// File upload manual (dropZoneM)
-const pluFileM = document.getElementById("pluFileM");
-const dropZoneM = document.getElementById("dropZoneM");
-if (pluFileM) {
-  pluFileM.addEventListener("change", e => loadPdfFrom(e.target.files[0], "fileTagM"));
-  dropZoneM?.addEventListener("dragover", e => { e.preventDefault(); dropZoneM.classList.add("over"); });
-  dropZoneM?.addEventListener("dragleave", () => dropZoneM.classList.remove("over"));
-  dropZoneM?.addEventListener("drop", e => { e.preventDefault(); dropZoneM.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f?.type==="application/pdf") loadPdfFrom(f, "fileTagM"); });
-}
-
-// File upload replace (pluFile2)
-const pluFile2 = document.getElementById("pluFile2");
-if (pluFile2) {
-  pluFile2.addEventListener("change", e => loadPdf(e.target.files[0]));
-}
-
-function loadPdfFrom(file, tagId) {
-  if (!file) return;
-  const ft = document.getElementById(tagId);
-  if (ft) { ft.textContent = "✓ " + file.name; ft.style.display = "flex"; }
-  const r = new FileReader();
-  r.onload = e => { pluBase64 = e.target.result.split(",")[1]; checkAll(); };
-  r.readAsDataURL(file);
-}
-
-// File upload handling
-document.addEventListener('DOMContentLoaded', () => {
-  const fileInput = document.getElementById('pluFile');
-  const dropZone = document.getElementById('dropZone');
-  if (fileInput) {
-    fileInput.addEventListener('change', e => loadPdf(e.target.files[0]));
-    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor='#0d9488'; dropZone.style.background='#e6f7f6'; });
-    dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor='#e2e8f0'; dropZone.style.background='#f8fafc'; });
-    dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.style.borderColor='#e2e8f0'; dropZone.style.background='#f8fafc'; const f = e.dataTransfer.files[0]; if (f?.type==='application/pdf') loadPdf(f); });
-  }
-});
-
-
-
+// ── ANALYSIS VOLETS ──
 function toggleV(id) {
   const b = document.getElementById("vb-" + id);
   const v = document.getElementById("v-" + id);
@@ -702,74 +643,105 @@ function toggleV(id) {
   v.classList.toggle("open", !open);
 }
 
+// ── CHECK READY ──
 function checkAll() {
-  const ok = document.getElementById("zone").value.trim().length > 0;
+  const zoneEl = document.getElementById("zone");
+  const ok = zoneEl && zoneEl.value.trim().length > 0;
   ["destination","surelevation","extension"].forEach(id => {
     const btn = document.getElementById("btn-" + id);
     if (btn) btn.disabled = !ok;
   });
 }
 
-async function findZone() {
-  const addr = document.getElementById("address").value.trim();
-  if (!addr) return;
-  const btn = document.getElementById("btnFind");
-  btn.disabled = true; btn.textContent = "⏳";
-  showGeo("load", "📍 Recherche en cours…");
-
-  try {
-    const r = await fetch("/api/zone", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({address: addr})
-    });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error);
-    if (d.zone) {
-      document.getElementById("zone").value = d.zone;
-      checkAll();
-      showGeo("ok", "✅ <strong>" + d.address + "</strong><br>Zone : <strong style=\"color:var(--teal);font-size:15px;\">" + d.zone + "</strong>");
-    } else {
-      showGeo("warn", "📍 " + d.address + "<br>⚠️ Zone non trouvée — renseignez-la manuellement.");
-    }
-    if (d.pluUrl) {
-      pluUrl = d.pluUrl;
-      const po = document.getElementById("pluOk");
-      po.innerHTML = "📄 <strong>" + (d.pluName || "Règlement PLU") + "</strong><br><small style=\"color:#047857;\">📥 <a href=\"" + d.pluUrl + "\" target=\"_blank\" style=\"color:#047857;text-decoration:underline;\">Télécharger pour vérifier la date</a></small>";
-      po.style.display = "block";
-      const pu = document.getElementById("pluUpload");
-      if (pu) pu.style.display = "none";
-    } else {
-      document.getElementById("pluMissingBox").style.display = "block";
-      document.getElementById("pluFoundBox").style.display = "none";
-    }
-  } catch(e) {
-    showGeo("err", "❌ " + e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = "🔍 Trouver la zone";
-  }
-}
-
+// ── GEO BOX ──
 function showGeo(type, html) {
   const el = document.getElementById("geoBox");
   const cls = {ok:"geo-box geo-ok", err:"geo-box geo-err", warn:"geo-box geo-load", load:"geo-box geo-load"};
-  el.className = cls[type];
+  el.className = cls[type] || "geo-box geo-load";
   el.innerHTML = html;
   el.style.display = "block";
 }
 
+// ── FIND ZONE ──
+async function findZone() {
+  const addr = document.getElementById("address").value.trim();
+  if (!addr) return;
+  const btn = document.getElementById("btnFind");
+  btn.disabled = true;
+  btn.innerHTML = "⏳";
+  showGeo("load", "📍 Recherche en cours…");
+
+  try {
+    const r = await fetch("/api/zone", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({address: addr})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+
+    if (d.zone) {
+      const zoneEl = document.getElementById("zone");
+      if (zoneEl) zoneEl.value = d.zone;
+      checkAll();
+      showGeo("ok", "✅ <strong>" + d.address + "</strong><br>Zone : <strong style='color:var(--teal);font-size:15px;'>" + d.zone + "</strong>");
+    } else {
+      showGeo("warn", "📍 " + d.address + "<br>⚠️ Zone non trouvée — renseignez-la manuellement.");
+    }
+
+    if (d.pluUrl) {
+      pluUrl = d.pluUrl;
+      const po = document.getElementById("pluOk");
+      po.innerHTML = "📄 <strong>" + (d.pluName || "Règlement PLU") + "</strong> &nbsp;<a href='" + d.pluUrl + "' target='_blank' style='color:#065f46;font-size:12px;'>↗ Télécharger</a>";
+      po.style.display = "block";
+      const pluFoundBox = document.getElementById("pluFoundBox");
+      const pluMissingBox = document.getElementById("pluMissingBox");
+      const pluAddBtn = document.getElementById("pluAddBtn");
+      if (pluFoundBox) pluFoundBox.style.display = "block";
+      if (pluMissingBox) pluMissingBox.style.display = "none";
+      if (pluAddBtn) pluAddBtn.style.display = "block";
+    } else {
+      const pluFoundBox = document.getElementById("pluFoundBox");
+      const pluMissingBox = document.getElementById("pluMissingBox");
+      if (pluFoundBox) pluFoundBox.style.display = "none";
+      if (pluMissingBox) pluMissingBox.style.display = "block";
+    }
+  } catch(e) {
+    showGeo("err", "❌ " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Trouver';
+  }
+}
+
+// ── SHOW PLU UPLOAD ──
+function showPluUpload() {
+  const zone = document.getElementById("pluAddZone");
+  if (zone) zone.style.display = "block";
+  const btn = document.querySelector(".btn-add-plu");
+  if (btn) btn.style.display = "none";
+}
+
+// ── RUN ANALYSIS ──
 async function run(type) {
-  const zone = document.getElementById("zone").value.trim();
+  const zoneEl = document.getElementById("zone");
+  const zone = zoneEl ? zoneEl.value.trim() : "";
+  if (!zone) return;
+
   const errEl = document.getElementById("err-" + type);
   const spEl  = document.getElementById("sp-" + type);
   const resEl = document.getElementById("res-" + type);
   const btnEl = document.getElementById("btn-" + type);
 
-  errEl.className = "err"; resEl.className = "res";
-  spEl.className = "spin show"; btnEl.disabled = true;
+  errEl.className = "err";
+  resEl.className = "res";
+  spEl.className = "spin show";
+  btnEl.disabled = true;
 
   try {
     const r = await fetch("/api/analyze", {
-      method:"POST", headers:{"Content-Type":"application/json"},
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
       body: JSON.stringify({zone, analysisType: type, pluUrl, pluBase64})
     });
     const d = await r.json();
@@ -787,21 +759,34 @@ async function run(type) {
   }
 }
 
+// ── MARKDOWN ──
 function md(s) {
   let h = s
-    .replace(/^---$/gm,"<hr>").replace(/^## (.+)$/gm,"<h2>$1</h2>").replace(/^### (.+)$/gm,"<h3>$1</h3>")
-    .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\*(.+?)\*/g,"<em>$1</em>")
+    .replace(/^---$/gm,"<hr>")
+    .replace(/^## (.+)$/gm,"<h2>$1</h2>")
+    .replace(/^### (.+)$/gm,"<h3>$1</h3>")
+    .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g,"<em>$1</em>")
     .replace(/^> (.+)$/gm,"<blockquote>$1</blockquote>")
-    .replace(/^[\-•] (.+)$/gm,"<li>$1</li>").replace(/^\d+\. (.+)$/gm,"<li>$1</li>");
-  h = h.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, m => "<ul>" + m + "</ul>");
-  h = h.split("\n").map(l => { l=l.trim(); if(!l) return ""; if(/^<(h[23]|ul|ol|blockquote|hr)/.test(l)) return l; return "<p>"+l+"</p>"; }).join("\n");
-  h = h.replace(/(✅[^\n<]+)/g,"<span class=\"v-ok\">$1</span>");
-  h = h.replace(/(⚠️[^\n<]+)/g,"<span class=\"v-warn\">$1</span>");
-  h = h.replace(/(❌[^\n<]+)/g,"<span class=\"v-nok\">$1</span>");
-  h = h.replace(/(❓[^\n<]+)/g,"<span class=\"v-unk\">$1</span>");
+    .replace(/^[\-•] (.+)$/gm,"<li>$1</li>")
+    .replace(/^\d+\. (.+)$/gm,"<li>$1</li>");
+  h = h.replace(/(<li>[\s\S]*?<\/li>
+?)+/g, m => "<ul>" + m + "</ul>");
+  h = h.split("
+").map(l => { l=l.trim(); if(!l) return ""; if(/^<(h[23]|ul|ol|blockquote|hr)/.test(l)) return l; return "<p>"+l+"</p>"; }).join("
+");
+  h = h.replace(/(✅[^
+<]+)/g,'<span class="v-ok">$1</span>');
+  h = h.replace(/(⚠️[^
+<]+)/g,'<span class="v-warn">$1</span>');
+  h = h.replace(/(❌[^
+<]+)/g,'<span class="v-nok">$1</span>');
+  h = h.replace(/(❓[^
+<]+)/g,'<span class="v-unk">$1</span>');
   return h;
 }
 
+// ── COPY / RESET ──
 function copy(type) {
   if (!results[type]) return;
   navigator.clipboard.writeText(results[type]).then(() => {
@@ -811,47 +796,50 @@ function copy(type) {
   });
 }
 
-function reset(type) {
+function resetR(type) {
   results[type] = null;
   document.getElementById("res-" + type).className = "res";
   document.getElementById("err-" + type).className = "err";
 }
 
-
-// Input volets (auto/manual)
-
-
-
-
-// Override findZone to show/hide PLU boxes
-findZone = async function() {
-};
-
-// Override showGeo to also manage PLU boxes
-showGeo = function(type, html) {
-};
-
-
-
-// File upload manual (dropZoneM)
-const pluFileM = document.getElementById("pluFileM");
-const dropZoneM = document.getElementById("dropZoneM");
-if (pluFileM) {
-  pluFileM.addEventListener("change", e => loadPdfFrom(e.target.files[0], "fileTagM"));
-  dropZoneM?.addEventListener("dragover", e => { e.preventDefault(); dropZoneM.classList.add("over"); });
-  dropZoneM?.addEventListener("dragleave", () => dropZoneM.classList.remove("over"));
-  dropZoneM?.addEventListener("drop", e => { e.preventDefault(); dropZoneM.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f?.type==="application/pdf") loadPdfFrom(f, "fileTagM"); });
+// ── FILE UPLOADS ──
+function loadPdf(file, tagId) {
+  if (!file || file.type !== "application/pdf") return;
+  const tid = tagId || "fileTag";
+  const ft = document.getElementById(tid);
+  if (ft) { ft.textContent = "✓ " + file.name; ft.style.display = "flex"; }
+  const r = new FileReader();
+  r.onload = e => { pluBase64 = e.target.result.split(",")[1]; checkAll(); };
+  r.readAsDataURL(file);
 }
 
-// File upload replace (pluFile2)
-const pluFile2 = document.getElementById("pluFile2");
-if (pluFile2) {
-  pluFile2.addEventListener("change", e => loadPdf(e.target.files[0]));
-}
+document.addEventListener("DOMContentLoaded", () => {
+  // Auto section uploads
+  ["pluFile", "pluFile2"].forEach(fid => {
+    const el = document.getElementById(fid);
+    if (el) el.addEventListener("change", e => loadPdf(e.target.files[0]));
+  });
 
+  // Manual section upload
+  const pluFileM = document.getElementById("pluFileM");
+  if (pluFileM) pluFileM.addEventListener("change", e => loadPdf(e.target.files[0], "fileTagM"));
 
-
-
+  // Drag & drop for all drop zones
+  ["dropZone", "dropZone2", "dropZoneM"].forEach(zid => {
+    const dz = document.getElementById(zid);
+    if (!dz) return;
+    dz.addEventListener("dragover", e => { e.preventDefault(); dz.classList.add("over"); });
+    dz.addEventListener("dragleave", () => dz.classList.remove("over"));
+    dz.addEventListener("drop", e => {
+      e.preventDefault(); dz.classList.remove("over");
+      const f = e.dataTransfer.files[0];
+      if (f?.type === "application/pdf") {
+        const tagId = zid === "dropZoneM" ? "fileTagM" : "fileTag";
+        loadPdf(f, tagId);
+      }
+    });
+  });
+});
 </script>
 </body>
 </html>
