@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 
 const PROMPTS = {
   destination: `Tu es un expert en droit de l'urbanisme français.
@@ -48,6 +49,50 @@ Analyse les extraits du règlement PLU pour :
 Cite toujours l'extrait exact entre guillemets avec la page.`
 };
 
+// Extrait les articles pertinents depuis le texte brut du PLU
+function extractZoneText(fullText, zone) {
+  const lines = fullText.split('\n');
+  const relevant = [];
+  let inZone = false;
+  let inGeneral = false;
+  const zoneUpper = zone.toUpperCase();
+  const baseZone = zone.replace(/[0-9]/g, '').toUpperCase(); // ex: UBc → UB
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineUpper = line.toUpperCase();
+
+    // Dispositions générales → toujours inclure
+    if (lineUpper.includes('DISPOSITION') && lineUpper.includes('GÉNÉRAL')) {
+      inGeneral = true;
+    }
+    // Début d'une autre zone → arrêt des dispositions générales
+    if (inGeneral && lineUpper.match(/^ZONE\s+[A-Z]/) && !lineUpper.includes(baseZone)) {
+      inGeneral = false;
+    }
+
+    // Début de la zone concernée
+    if (lineUpper.includes(`ZONE ${zoneUpper}`) || lineUpper.includes(`ARTICLE ${zoneUpper}`)) {
+      inZone = true;
+    }
+    // Début d'une autre zone → fin
+    if (inZone && lineUpper.match(/^ZONE\s+[A-Z]/) && !lineUpper.includes(zoneUpper) && !lineUpper.includes(baseZone)) {
+      inZone = false;
+    }
+
+    if (inZone || inGeneral) {
+      relevant.push(line);
+    }
+  }
+
+  // Si extraction vide, retourner le texte complet tronqué
+  const result = relevant.join('\n').trim();
+  if (result.length < 500) {
+    return fullText.slice(0, 80000); // ~20k tokens max
+  }
+  return result.slice(0, 80000);
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -64,65 +109,44 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'Clé API non configurée' });
 
   try {
-    // Récupérer le PDF
-    let pdfBase64 = pluBase64;
-    if (!pdfBase64 && pluUrl) {
+    // Récupérer le PDF en buffer
+    let pdfBuffer;
+    if (pluBase64) {
+      pdfBuffer = Buffer.from(pluBase64, 'base64');
+    } else {
       const pdfRes = await fetch(pluUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'application/pdf,*/*',
-        }
+        headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/pdf,*/*' }
       });
       if (!pdfRes.ok) throw new Error(`Impossible de télécharger le PLU (${pdfRes.status})`);
-      const buffer = await pdfRes.arrayBuffer();
-      pdfBase64 = Buffer.from(buffer).toString('base64');
+      pdfBuffer = Buffer.from(await pdfRes.arrayBuffer());
     }
 
+    // Extraire le texte côté serveur — aucune limite de pages !
+    const pdfData = await pdfParse(pdfBuffer);
+    const fullText = pdfData.text;
+    console.log(`PDF: ${pdfData.numpages} pages, ${fullText.length} chars`);
+
+    // Extraire uniquement les articles pertinents pour la zone
+    const zoneText = extractZoneText(fullText, zone);
+    console.log(`Zone text: ${zoneText.length} chars`);
+
+    // Analyser avec Claude (texte seulement, pas de PDF)
     const client = new Anthropic({ apiKey });
     const prompt = PROMPTS[analysisType]?.replace('{ZONE}', zone);
     if (!prompt) return res.status(400).json({ error: "Type d'analyse invalide" });
 
-    // ÉTAPE 1 : Extraire les articles de la zone depuis le PDF
-    // En passant par le texte, on contourne la limite de 100 pages
-    const extractMsg = await client.messages.create({
-      model: 'claude-opus-4-5',
-      max_tokens: 8000,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'document',
-            source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 }
-          },
-          {
-            type: 'text',
-            text: `Ce document est un règlement PLU. Extrais UNIQUEMENT :
-1. Les dispositions générales applicables à toutes les zones
-2. Tous les articles qui concernent spécifiquement la zone "${zone}"
-
-Conserve les numéros d'articles, les titres et le texte intégral. Indique le numéro de page pour chaque article.`
-          }
-        ]
-      }]
-    });
-
-    const extractedText = extractMsg.content[0].text;
-
-    // ÉTAPE 2 : Analyser le texte extrait
-    const analyseMsg = await client.messages.create({
+    const message = await client.messages.create({
       model: 'claude-opus-4-5',
       max_tokens: 4000,
       messages: [{
         role: 'user',
-        content: `Voici les extraits du règlement PLU (zone ${zone}) :\n\n${extractedText}\n\n---\n\n${prompt}`
+        content: `Voici les extraits du règlement PLU (zone ${zone}) :\n\n${zoneText}\n\n---\n\n${prompt}`
       }]
     });
 
     return res.status(200).json({
-      success: true,
-      zone,
-      analysisType,
-      result: analyseMsg.content[0].text
+      success: true, zone, analysisType,
+      result: message.content[0].text
     });
 
   } catch (error) {
