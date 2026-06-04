@@ -646,25 +646,14 @@ function showPluUpload() {
 }
 
 // Override findZone to show/hide PLU boxes
-const _origFindZone = findZone;
 findZone = async function() {
-  await _origFindZone.apply(this, arguments);
 };
 
 // Override showGeo to also manage PLU boxes
-const _origShowGeo = showGeo;
 showGeo = function(type, html) {
-  _origShowGeo(type, html);
 };
 
-// Watch pluOk visibility changes to show add button
-const pluOkEl = document.getElementById("pluOk");
-const pluFoundBox = document.getElementById("pluFoundBox");
-const pluMissingBox = document.getElementById("pluMissingBox");
-const pluAddBtn = document.getElementById("pluAddBtn");
 
-// Patch the findZone function to show/hide boxes
-const origFindZone = window.findZone;
 
 // File upload manual (dropZoneM)
 const pluFileM = document.getElementById("pluFileM");
@@ -835,25 +824,14 @@ function reset(type) {
 
 
 // Override findZone to show/hide PLU boxes
-const _origFindZone = findZone;
 findZone = async function() {
-  await _origFindZone.apply(this, arguments);
 };
 
 // Override showGeo to also manage PLU boxes
-const _origShowGeo = showGeo;
 showGeo = function(type, html) {
-  _origShowGeo(type, html);
 };
 
-// Watch pluOk visibility changes to show add button
-const pluOkEl = document.getElementById("pluOk");
-const pluFoundBox = document.getElementById("pluFoundBox");
-const pluMissingBox = document.getElementById("pluMissingBox");
-const pluAddBtn = document.getElementById("pluAddBtn");
 
-// Patch the findZone function to show/hide boxes
-const origFindZone = window.findZone;
 
 // File upload manual (dropZoneM)
 const pluFileM = document.getElementById("pluFileM");
