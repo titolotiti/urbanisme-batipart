@@ -20,17 +20,6 @@ export default async function handler(req, res) {
     return ` — ${d.slice(6)}/${d.slice(4,6)}/${d.slice(0,4)}`;
   }
 
-  function pickReglement(items) {
-    if (!items?.length) return null;
-    const u = d => d.href || d.url || d.fichier || d.chemin || d.nom || '';
-    return (
-      items.find(d => u(d).match(/reglement(?!.*graphique).*\.pdf$/i)) ||
-      items.find(d => d.libelle?.toLowerCase().match(/règlement.*(tome\s*1|écrit)/i) && u(d).endsWith('.pdf')) ||
-      items.find(d => d.libelle?.toLowerCase().includes('règlement') && u(d).endsWith('.pdf')) ||
-      items.find(d => u(d).endsWith('.pdf') && !u(d).match(/graphique|rapport|padd|oap|procedure/i))
-    );
-  }
-
   try {
     // ─── 1. Géocodage ───
     const geoR = await fetch(
@@ -42,6 +31,7 @@ export default async function handler(req, res) {
     const feat = geoD.features[0];
     const [lon, lat] = feat.geometry.coordinates;
     const label = feat.properties.label;
+    const city = feat.properties.city || '';
     let citycode = feat.properties.citycode;
     if (citycode.startsWith('751')) citycode = '75056';
     if (citycode.startsWith('692')) citycode = '69123';
@@ -50,7 +40,7 @@ export default async function handler(req, res) {
     const geomStr = JSON.stringify({ type: 'Point', coordinates: [lon, lat] });
 
     // ─── 2. Zone PLU ───
-    let zone = null;
+    let zone = null, partition = null;
     try {
       const zR = await fetch(
         `https://apicarto.ign.fr/api/gpu/zone-urba?geom=${encodeURIComponent(geomStr)}`,
@@ -63,10 +53,9 @@ export default async function handler(req, res) {
       }
     } catch(e) { console.log('Zone err:', e.message); }
 
-    // ─── 3. Document PLU ───
-    // APICarto /api/gpu/document avec la géométrie retourne la VRAIE partition
-    // au format {codgeo}_{PLU|PLUi}_{YYYYMMDD}
-    let partition = null, docId = null;
+    // ─── 3. Récupérer le document PLU ───
+    // APICarto /api/gpu/document avec geometry → retourne la vraie partition
+    let docPartition = null, docProps = null;
     try {
       const dR = await fetch(
         `https://apicarto.ign.fr/api/gpu/document?geom=${encodeURIComponent(geomStr)}`,
@@ -74,66 +63,79 @@ export default async function handler(req, res) {
       );
       const dD = await dR.json();
       if (dD.features?.length) {
-        const props = dD.features[0].properties;
-        partition = props.partition || null;
-        docId = props.id || props.documentId || props.codeKey || null;
-        console.log('Document API:', { partition, docId, props: JSON.stringify(props).slice(0, 200) });
+        docProps = dD.features[0].properties;
+        docPartition = docProps.partition || null;
+        console.log('APICarto document props:', JSON.stringify(docProps));
       }
     } catch(e) { console.log('Document err:', e.message); }
 
-    // ─── 4. URL du règlement ───
+    partition = docPartition;
+
+    // ─── 4. Trouver l'URL du règlement ───
     let pluUrl = null, pluName = null;
 
-    // SOURCE 1 : GPU /api/document/{id}/details → liste des fichiers
-    if (docId) {
-      try {
-        const detR = await fetch(
-          `https://www.geoportail-urbanisme.gouv.fr/api/document/${docId}/details`,
-          { headers: H }
-        );
-        if (detR.ok) {
-          const detD = await detR.json();
-          console.log('Details response:', JSON.stringify(detD).slice(0, 300));
-          const fichiers = detD.fichiers || detD.files || detD.pieces || detD.piecesEcrites || [];
-          const arr = Array.isArray(fichiers) ? fichiers : Object.values(fichiers);
-          const reg = pickReglement(arr);
-          const url = reg ? (reg.href || reg.url || reg.chemin) : null;
-          if (url) {
+    // SOURCE 1 : GPU Géoportail API — recherche par codgeo
+    // Retourne le document avec son hash, depuis lequel on construit l'URL
+    try {
+      const gpuR = await fetch(
+        `https://www.geoportail-urbanisme.gouv.fr/api/document?codgeo=${citycode}&_limit=5&etat=APPROUVE`,
+        { headers: { ...H, 'Accept': 'application/json' } }
+      );
+      if (gpuR.ok) {
+        const gpuD = await gpuR.json();
+        console.log('GPU API response:', JSON.stringify(gpuD).slice(0, 300));
+        
+        // Cherche le document PLU/PLUi le plus récent
+        const docs = gpuD.results || gpuD.data || (Array.isArray(gpuD) ? gpuD : []);
+        const doc = docs.find(d => ['PLU','PLUi','CC'].includes(d.typeDocument)) || docs[0];
+        
+        if (doc?.id && doc?.partition) {
+          const m = doc.partition.match(/^(\d+)_[^_]+_(\d{8})$/);
+          if (m) {
+            const [, codgeo, date] = m;
+            const url = `https://data.geopf.fr/annexes/gpu/documents/DU_${codgeo}/${doc.id}/${codgeo}_reglement_${date}.pdf`;
             pluUrl = url;
-            pluName = (reg.libelle || 'Règlement PLU') + fmtDate(url);
-            console.log('✓ GPU details:', pluUrl);
+            pluName = `${doc.typeDocument} ${city}` + fmtDate(url);
+            console.log('✓ GPU API:', pluUrl);
           }
         }
-      } catch(e) { console.log('GPU details err:', e.message); }
-    }
+      }
+    } catch(e) { console.log('GPU API err:', e.message); }
 
-    // SOURCE 2 : Construire URL depuis partition + hash via GPU search
-    if (!pluUrl && partition) {
+    // SOURCE 2 : Chercher le règlement via DuckDuckGo
+    // Recherche directe sur data.geopf.fr pour la commune
+    if (!pluUrl) {
       try {
-        const m = partition.match(/^(\d+)_(?:PLU|PLUi|CC)[^_]*_(\d{8})$/i);
-        if (m) {
-          const [, codgeo, date] = m;
-          const sR = await fetch(
-            `https://www.geoportail-urbanisme.gouv.fr/api/document?grid=${encodeURIComponent(partition)}&_limit=1`,
-            { headers: H }
-          );
-          if (sR.ok) {
-            const sD = await sR.json();
-            console.log('GPU search:', JSON.stringify(sD).slice(0, 200));
-            const doc = Array.isArray(sD) ? sD[0] : (sD.results?.[0] || sD.data?.[0] || sD);
-            const hash = doc?.id || doc?.hashKey || doc?._id;
-            if (hash) {
-              const url = `https://data.geopf.fr/annexes/gpu/documents/DU_${codgeo}/${hash}/${codgeo}_reglement_${date}.pdf`;
-              pluUrl = url;
-              pluName = 'Règlement PLU' + fmtDate(url);
-              console.log('✓ URL construite:', pluUrl);
-            }
+        const query = `${city} PLU règlement écrit PDF site:data.geopf.fr reglement`;
+        const ddgR = await fetch(
+          `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
+          { 
+            headers: { 
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept': 'text/html'
+            } 
+          }
+        );
+        if (ddgR.ok) {
+          const html = await ddgR.text();
+          // Cherche les URLs data.geopf.fr/annexes/gpu/documents contenant "reglement"
+          const matches = html.match(/https:\/\/data\.geopf\.fr\/annexes\/gpu\/documents\/[^"'\s<>]+reglement[^"'\s<>]*\.pdf/gi) || [];
+          // Prend l'URL la plus récente (date la plus haute dans le nom)
+          const sorted = matches.sort((a, b) => {
+            const da = a.match(/_(\d{8})\.pdf$/)?.[1] || '0';
+            const db = b.match(/_(\d{8})\.pdf$/)?.[1] || '0';
+            return db.localeCompare(da);
+          });
+          if (sorted[0]) {
+            pluUrl = sorted[0];
+            pluName = `PLU ${city}` + fmtDate(pluUrl);
+            console.log('✓ DuckDuckGo search:', pluUrl);
           }
         }
-      } catch(e) { console.log('URL construct err:', e.message); }
+      } catch(e) { console.log('DDG search err:', e.message); }
     }
 
-    // SOURCE 3 : Base minimale (communes connues)
+    // SOURCE 3 : Base de données minimale (backup)
     if (!pluUrl) {
       const BNS = 'https://data.geopf.fr/annexes/gpu/documents/DU_200057990/35b89739df91562887f9e4623801ace5/200057990_reglement_20260217.pdf';
       const GPSO = 'https://data.geopf.fr/annexes/gpu/documents/DU_200057974/da0d24dad863b8b32a2323bc49cd389e/200057974_reglement_20251202.pdf';
@@ -151,10 +153,10 @@ export default async function handler(req, res) {
       };
       const partCodgeo = partition?.match(/^(\d+)_/)?.[1];
       const entry = DB[citycode] || (partCodgeo && DB[partCodgeo]);
-      if (entry) { [pluUrl, pluName] = entry; console.log('✓ DB:', citycode); }
+      if (entry) { [pluUrl, pluName] = entry; }
     }
 
-    console.log('FINAL:', { citycode, zone, partition, docId, found: !!pluUrl });
+    console.log('FINAL:', { citycode, zone, partition, city, found: !!pluUrl });
     return res.status(200).json({
       success: true, address: label,
       coordinates: { lat, lon },
