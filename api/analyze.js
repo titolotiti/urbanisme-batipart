@@ -1,52 +1,38 @@
 import Anthropic from '@anthropic-ai/sdk';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 
+const BASE_PROMPT = `Tu es un expert en droit de l'urbanisme français.
+Analyse les extraits du règlement PLU (zone {ZONE}) pour l'opération suivante : {OPERATION}
+
+Réponds UNIQUEMENT avec ces 4 sections, rien d'autre :
+
+## ① Est-ce possible ?
+Une seule ligne : ✅ Oui / ⚠️ Oui sous conditions / ❌ Non / ❓ Non précisé
+Suivi d'une phrase d'explication directe.
+
+## ② Part de logements sociaux obligatoire
+- S'il existe une obligation de logements sociaux dans cette zone : précise le pourcentage ou la règle exacte
+- Sinon : "Aucune obligation de logement social mentionnée dans le règlement"
+
+## ③ Conditions à respecter
+Liste numérotée des conditions obligatoires (si aucune : "Aucune condition particulière").
+
+## ④ Passages du règlement
+Pour CHAQUE élément cité, donne :
+→ Page XX — Article YY : "extrait exact mot pour mot entre guillemets"
+
+Important : cite toujours le texte exact, jamais de paraphrase.`;
+
+const OPERATIONS = {
+  destination: "Changement de destination — transformation de bureaux en logements (habitation) sur bâtiment existant",
+  surelevation: "Surélévation d'un bâtiment existant — ajout d'étages (hauteur maximale autorisée, gabarit, prospects)",
+  extension: "Extension d'un bâtiment existant — agrandissement (emprise au sol, reculs, implantation)"
+};
+
 const PROMPTS = {
-  destination: `Tu es un expert en droit de l'urbanisme français.
-Analyse les extraits du règlement PLU pour :
-- Zone : {ZONE}
-- Opération : Changement de destination — bureaux → logements
-- Bâtiment existant
-
-## Verdict
-✅ Autorisé / ⚠️ Autorisé sous conditions / ❌ Interdit / ❓ Non précisé
-## Synthèse (2-3 phrases décisionnelles)
-## Articles applicables (numéro, page, extrait exact entre guillemets)
-## Conditions à respecter
-## Autorisations requises
-## Points de vigilance
-Cite toujours l'extrait exact entre guillemets avec la page.`,
-
-  surelevation: `Tu es un expert en droit de l'urbanisme français.
-Analyse les extraits du règlement PLU pour :
-- Zone : {ZONE}
-- Opération : Surélévation d'un bâtiment existant (ajout d'étages)
-
-## Verdict
-✅ Autorisé / ⚠️ Autorisé sous conditions / ❌ Interdit / ❓ Non précisé
-## Synthèse (2-3 phrases décisionnelles)
-## Articles applicables (numéro, page, extrait exact entre guillemets)
-## Hauteur maximale autorisée
-## Conditions à respecter
-## Autorisations requises
-## Points de vigilance
-Cite toujours l'extrait exact entre guillemets avec la page.`,
-
-  extension: `Tu es un expert en droit de l'urbanisme français.
-Analyse les extraits du règlement PLU pour :
-- Zone : {ZONE}
-- Opération : Extension d'un bâtiment existant (agrandissement)
-
-## Verdict
-✅ Autorisé / ⚠️ Autorisé sous conditions / ❌ Interdit / ❓ Non précisé
-## Synthèse (2-3 phrases décisionnelles)
-## Articles applicables (numéro, page, extrait exact entre guillemets)
-## Emprise au sol maximale
-## Reculs et implantation
-## Conditions à respecter
-## Autorisations requises
-## Points de vigilance
-Cite toujours l'extrait exact entre guillemets avec la page.`
+  destination: BASE_PROMPT,
+  surelevation: BASE_PROMPT,
+  extension: BASE_PROMPT
 };
 
 // Extrait les articles pertinents depuis le texte brut du PLU
@@ -132,7 +118,10 @@ export default async function handler(req, res) {
 
     // Analyser avec Claude (texte seulement, pas de PDF)
     const client = new Anthropic({ apiKey });
-    const prompt = PROMPTS[analysisType]?.replace('{ZONE}', zone);
+    const operation = OPERATIONS[analysisType];
+    const prompt = PROMPTS[analysisType]
+      ?.replace('{ZONE}', zone)
+      ?.replace('{OPERATION}', operation);
     if (!prompt) return res.status(400).json({ error: "Type d'analyse invalide" });
 
     const message = await client.messages.create({
