@@ -57,28 +57,28 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
 .card-hd{padding:18px 22px 0;display:flex;align-items:center;gap:10px}
 .card-num{width:22px;height:22px;background:var(--blue);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;flex-shrink:0}
 .card-hd h2{font-size:14px;font-weight:600;color:var(--ink)}
-.card-bd{padding:16px 22px 22px}
+.card-bd{padding:20px 24px 28px}
 
 /* field */
-.field{margin-bottom:14px}
+.field{margin-bottom:18px}
 .field:last-child{margin-bottom:0}
 label{display:block;font-size:11.5px;font-weight:500;color:var(--ink2);margin-bottom:6px}
-input[type=text]{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--r-sm);padding:10px 14px;font-family:'Geist',sans-serif;font-size:13.5px;color:var(--ink);outline:none;transition:border-color .18s,box-shadow .18s}
+input[type=text]{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--r-sm);padding:13px 16px;font-family:'Geist',sans-serif;font-size:13.5px;color:var(--ink);outline:none;transition:border-color .18s,box-shadow .18s}
 input[type=text]:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(44,74,110,.1)}
 input[type=text]::placeholder{color:var(--ink3)}
 
 /* btn-find */
 .addr-row{display:flex;gap:8px}
-.btn-find{flex-shrink:0;background:var(--blue);color:#fff;border:none;border-radius:var(--r-sm);padding:10px 15px;font-family:'Geist',sans-serif;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;transition:opacity .18s}
+.btn-find{flex-shrink:0;background:var(--blue);color:#fff;border:none;border-radius:var(--r-sm);padding:13px 18px;font-family:'Geist',sans-serif;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;transition:opacity .18s}
 .btn-find:hover{opacity:.85}
 .btn-find:disabled{opacity:.45;cursor:not-allowed}
 
 /* geo box */
-.geo-box{display:none;margin-top:8px;border-radius:var(--r-sm);padding:10px 14px;font-size:13px;line-height:1.6}
+.geo-box{display:none;margin-top:10px;border-radius:var(--r-sm);padding:13px 16px;font-size:13.5px;line-height:1.7}
 .geo-ok{background:var(--green-bg);border:1px solid #a7f3d0;color:var(--green-txt)}
 .geo-err{background:var(--red-bg);border:1px solid #fecaca;color:var(--red-txt)}
 .geo-load{background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8}
-.plu-ok{display:none;margin-top:8px;background:var(--green-bg);border:1px solid #a7f3d0;border-radius:var(--r-sm);padding:9px 14px;font-size:12.5px;color:var(--green-txt);line-height:1.6}
+.plu-ok{display:none;margin-top:10px;background:var(--green-bg);border:1px solid #a7f3d0;border-radius:var(--r-sm);padding:13px 16px;font-size:13px;color:var(--green-txt);line-height:1.7}
 
 /* section sep */
 .section-sep{display:flex;align-items:center;gap:10px;margin:18px 0 14px}
@@ -88,14 +88,14 @@ input[type=text]::placeholder{color:var(--ink3)}
 /* input volets */
 .iv{border:1.5px solid var(--border);border-radius:var(--r);overflow:hidden;transition:border-color .2s;margin-bottom:10px}
 .iv.on{border-color:var(--blue)}
-.iv-hd{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;user-select:none;transition:background .15s}
+.iv-hd{display:flex;align-items:center;gap:12px;padding:16px 20px;cursor:pointer;user-select:none;transition:background .15s}
 .iv-hd:hover{background:var(--surface2)}
 .iv.on .iv-hd{background:var(--blue-light)}
 .iv-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--ink3);transition:background .2s}
 .iv.on .iv-dot{background:var(--blue)}
 .iv-info{flex:1}
-.iv-title{font-size:13.5px;font-weight:600;color:var(--ink)}
-.iv-sub{font-size:11.5px;color:var(--ink3);margin-top:2px}
+.iv-title{font-size:14px;font-weight:600;color:var(--ink)}
+.iv-sub{font-size:12px;color:var(--ink3);margin-top:3px}
 .iv-arrow{font-size:18px;color:var(--ink3);transition:transform .25s;line-height:1}
 .iv.on .iv-arrow{transform:rotate(90deg);color:var(--blue)}
 .iv-bd{padding:4px 16px 16px;border-top:1.5px solid var(--blue-light);display:none}
