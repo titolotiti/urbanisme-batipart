@@ -62,7 +62,14 @@ export default async function handler(req, res) {
       const zoneData = await zoneRes.json();
       if (zoneData.features?.length) {
         const props = zoneData.features[0].properties;
-        zone = props.libelle || props.typezone || null;
+        // Récupérer le code zone le plus précis possible
+        // APICarto retourne plusieurs champs selon les communes
+        zone = props.libelle              // Ex: "UBc", "UA1", "UCm" — le plus précis
+             || props.libelong            // Description longue parfois plus précise  
+             || props.typezone            // Type de base "U", "AU", "A", "N"
+             || null;
+        // Nettoyer : supprimer espaces et caractères parasites
+        if (zone) zone = zone.trim().replace(/\s+/g, '');
         partition = props.partition || null;
       }
     } catch(e) { console.log('Zone error:', e.message); }
