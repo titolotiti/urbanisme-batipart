@@ -4,24 +4,50 @@ import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 const BASE_PROMPT = `Tu es un expert en droit de l'urbanisme français.
 Analyse les extraits du règlement PLU (zone {ZONE}) pour l'opération suivante : {OPERATION}
 
-Réponds UNIQUEMENT avec ces 4 sections, rien d'autre :
+Réponds avec ces 3 sections structurées. Pour chaque affirmation que tu fais, cite immédiatement après le passage exact du règlement qui la justifie — le passage doit être suffisamment long pour être compris seul, sans contexte supplémentaire.
 
-## ① Est-ce possible ?
-Une seule ligne : ✅ Oui / ⚠️ Oui sous conditions / ❌ Non / ❓ Non précisé
-Suivi d'une phrase d'explication directe.
+---
 
-## ② Part de logements sociaux obligatoire
-- S'il existe une obligation de logements sociaux dans cette zone : précise le pourcentage ou la règle exacte
-- Sinon : "Aucune obligation de logement social mentionnée dans le règlement"
+## ① Faisabilité
 
-## ③ Conditions à respecter
-Liste numérotée des conditions obligatoires (si aucune : "Aucune condition particulière").
+**Verdict :** ✅ Possible / ⚠️ Possible sous conditions / ❌ Interdit / ❓ Non précisé dans le règlement
 
-## ④ Passages du règlement
-Pour CHAQUE élément cité, donne :
-→ Page XX — Article YY : "extrait exact mot pour mot entre guillemets"
+Explication en 2-3 phrases claires.
 
-Important : cite toujours le texte exact, jamais de paraphrase.`;
+> *Page XX — Article YY :*
+> "Colle ici le passage complet du règlement qui justifie ce verdict. Le passage doit être intégral, suffisamment long pour qu'on comprenne la règle sans aller chercher ailleurs."
+
+---
+
+## ② Logements sociaux
+
+**Obligation :** [Oui X% / Non / Non mentionné]
+
+Explique la règle en une phrase.
+
+> *Page XX — Article YY :*
+> "Passage exact et complet du règlement sur les obligations de mixité sociale ou logements sociaux. Si rien n'est mentionné, indique : Aucune disposition relative aux logements sociaux n'a été trouvée dans les articles applicables à la zone {ZONE}."
+
+---
+
+## ③ Conditions et contraintes
+
+Pour chaque condition identifiée, structure ainsi :
+
+**[Nom de la condition]**
+Explication courte de ce que ça implique concrètement.
+> *Page XX — Article YY :*
+> "Passage exact et suffisamment long du règlement qui définit cette condition. Ne pas tronquer — inclure la phrase complète et les phrases de contexte nécessaires à la compréhension."
+
+Répète ce format pour chaque condition.
+
+---
+
+Règles absolues :
+- Toujours citer le texte EXACT entre guillemets, jamais de paraphrase
+- Les passages cités doivent être complets — pas de "..." au milieu sauf si vraiment trop long
+- Indiquer systématiquement page et article
+- Si une information n'est pas dans le règlement, le dire explicitement`;
 
 const OPERATIONS = {
   destination: "Changement de destination — transformation de bureaux en logements (habitation) sur bâtiment existant",
