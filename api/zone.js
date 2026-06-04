@@ -97,11 +97,30 @@ export default async function handler(req, res) {
       }
     } catch(e) { console.log('Doc err:', e.message); }
 
-    // ─── 4. Fallback DB — uniquement Paris (cas particulier) ───
-    // Pour toutes les autres communes, APICarto gère automatiquement
-    if (!pluUrl && citycode === '75056') {
-      pluUrl = 'https://data.geopf.fr/annexes/gpu/documents/DU_75056/29b89f23c2ea085d0ea7706d42254ce2/75056_reglement_20251219.pdf';
-      pluName = 'PLU Paris bioclimatique — 16-19/12/2025';
+    // ─── 4. Fallback DB ───
+    // Pour Paris et les PLUi intercommunaux (APICarto ne retourne pas le hash pour ces territoires)
+    if (!pluUrl) {
+      const GPSO = ['https://data.geopf.fr/annexes/gpu/documents/DU_200057974/da0d24dad863b8b32a2323bc49cd389e/200057974_reglement_20251202.pdf', 'PLUi Grand Paris Seine Ouest — 02/12/2025'];
+      const BNS  = ['https://data.geopf.fr/annexes/gpu/documents/DU_200057990/35b89739df91562887f9e4623801ace5/200057990_reglement_20260217.pdf', 'PLUi Boucle Nord de Seine — 17/02/2026'];
+      const PC   = ['https://data.geopf.fr/annexes/gpu/documents/DU_200057867/9ac270d37a778fa1bed02998270ab1b3/200057867_reglement_20251216.pdf', 'PLUi Plaine Commune — 16/12/2025'];
+      const DB = {
+        '75056': ['https://data.geopf.fr/annexes/gpu/documents/DU_75056/29b89f23c2ea085d0ea7706d42254ce2/75056_reglement_20251219.pdf', 'PLU Paris — 16-19/12/2025'],
+        // PLUi GPSO
+        '92012':GPSO,'92022':GPSO,'92040':GPSO,'92046':GPSO,
+        '92049':GPSO,'92072':GPSO,'92073':GPSO,'92079':GPSO,
+        // PLUi Boucle Nord de Seine
+        '92004':BNS,'92009':BNS,'92024':BNS,'92025':BNS,
+        '92036':BNS,'92078':BNS,'95018':BNS,
+        // PLUi Plaine Commune
+        '93001':PC,'93027':PC,'93029':PC,'93037':PC,
+        '93059':PC,'93066':PC,'93068':PC,'93070':PC,'93078':PC,
+        // PLU communaux
+        '92051':['https://data.geopf.fr/annexes/gpu/documents/DU_92051/e6c8855ff88ca1b7823c688132f2d6f1/92051_reglement_20210629.pdf','PLU Neuilly-sur-Seine — 29/06/2021'],
+        '92075':['https://www.suresnes.fr/wp-content/uploads/2024/07/4.1-Reglement-PLU-Suresnes-Modification-26-06-2024-V2.pdf','PLU Suresnes — 26/06/2024'],
+        '94037':['https://www.ville-gentilly.fr/sites/default/files/modification_ndeg6_du_plu_-_reglement_ecrit.pdf','PLU Gentilly — 12/03/2024'],
+      };
+      const entry = DB[citycode];
+      if (entry) { [pluUrl, pluName] = entry; console.log('✓ DB fallback:', citycode); }
     }
 
     console.log('FINAL:', { citycode, zone, partition, found: !!pluUrl });
