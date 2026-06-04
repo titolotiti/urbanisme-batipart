@@ -1,5 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk';
-
 const BASE_PROMPT = `Tu es un expert en droit de l'urbanisme français.
 Analyse le règlement PLU (zone {ZONE}) pour l'opération suivante : {OPERATION}
 
@@ -63,38 +61,43 @@ export default async function handler(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Clé API non configurée' });
 
-  const client = new Anthropic({ apiKey });
   const prompt = BASE_PROMPT
     .replace('{ZONE}', zone)
     .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType);
 
+  // Source du document — URL directe (Claude fetch lui-même) ou base64 (upload manuel)
+  const docSource = pluBase64
+    ? { type: 'base64', media_type: 'application/pdf', data: pluBase64 }
+    : { type: 'url', url: pluUrl };
+
   try {
-    let docSource;
-
-    if (pluBase64) {
-      // PDF uploadé manuellement — envoi base64
-      docSource = { type: 'base64', media_type: 'application/pdf', data: pluBase64 };
-    } else {
-      // PDF auto-détecté — Claude le récupère directement depuis l'URL
-      // Aucun téléchargement sur Vercel → pas de problème mémoire
-      docSource = { type: 'url', url: pluUrl };
-    }
-
-    const message = await client.messages.create({
-      model: 'claude-opus-4-5',
-      max_tokens: 4000,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'document', source: docSource },
-          { type: 'text', text: prompt }
-        ]
-      }]
+    // Appel direct à l'API Anthropic sans SDK — évite tout téléchargement sur Vercel
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-5',
+        max_tokens: 4000,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'document', source: docSource },
+            { type: 'text', text: prompt }
+          ]
+        }]
+      })
     });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(JSON.stringify(data.error));
 
     return res.status(200).json({
       success: true, zone, analysisType,
-      result: message.content[0].text
+      result: data.content[0].text
     });
 
   } catch(err) {
