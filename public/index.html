@@ -170,6 +170,22 @@ input[type=text]::placeholder{color:var(--ink3)}
 .bsm:hover{background:var(--bg)}
 .bsm.blue{border-color:var(--blue);color:var(--blue)}
 .bsm.blue:hover{background:var(--blue-light)}
+
+/* ── PRINT / PDF ── */
+@media print {
+  .drawer, #overlay, .topbar, .res-foot, .iv-hd, .section-sep, #iv-manual, .av-hd { display: none !important; }
+  body { background: #fff; }
+  .page { padding: 0; max-width: 100%; }
+  .card { box-shadow: none; border: none; }
+  .res { display: block !important; box-shadow: none; }
+  .res-body { padding: 10px 0; }
+}
+/* History items */
+.hist-item { padding: 8px 10px; border-radius: 7px; cursor: pointer; margin-bottom: 3px; transition: background .15s; }
+.hist-item:hover { background: rgba(255,255,255,.07); }
+.hist-date { font-size: 10px; color: rgba(255,255,255,.3); }
+.hist-addr { font-size: 12px; color: rgba(255,255,255,.65); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hist-zone { font-size: 11px; color: rgba(255,255,255,.4); margin-top: 1px; }
 </style>
 </head>
 <body>
@@ -205,6 +221,11 @@ input[type=text]::placeholder{color:var(--ink3)}
       <span class="d-label2">Note de synthèse</span>
       <span class="d-badge">Bientôt</span>
     </div>
+  </div>
+  <div class="d-section">
+    <div class="d-label">Historique</div>
+    <div id="historyList" style="padding:0 6px;"></div>
+    <div id="historyEmpty" style="padding:8px 10px;font-size:11.5px;color:rgba(255,255,255,.25)">Aucune recherche</div>
   </div>
 </aside>
 
@@ -249,7 +270,13 @@ input[type=text]::placeholder{color:var(--ink3)}
           </div>
           <div id="pluFoundBox" style="display:none;margin-top:10px">
             <div class="plu-ok" id="pluOk"></div>
-            <div id="pluReplaceBox" style="display:none">
+            <div id="pluAgeWarning" style="display:none;margin-top:8px;background:#fef9ec;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#92400e;">
+            ⚠️ <strong>PLU potentiellement obsolète</strong> — ce document date de plus de 2 ans. Vérifiez qu'il est toujours en vigueur.
+          </div>
+          <div style="margin-top:8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;font-size:12px;color:#1e40af;line-height:1.6;">
+            📋 <strong>Important :</strong> Cet outil analyse uniquement le règlement écrit. Les surcharges graphiques du plan de zonage (maintien des surfaces de bureau, retraits obligatoires, emplacements réservés) ne sont pas détectées automatiquement — consultez le plan de zonage pour les vérifier.
+          </div>
+          <div id="pluReplaceBox" style="display:none">
               <button class="btn-replace" onclick="showReplace()">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 Remplacer par un autre PLU
@@ -563,6 +590,114 @@ document.addEventListener('DOMContentLoaded', () => {
   setupDrop('drop2', 'file2', 'tag2');
   setupDrop('dropM', 'fileM', 'tagM');
 });
+
+// ── HISTORIQUE ──
+function saveHistory(address, zone, pluName) {
+  const history = JSON.parse(localStorage.getItem('plu_history') || '[]');
+  const entry = {
+    date: new Date().toLocaleDateString('fr-FR'),
+    address,
+    zone,
+    pluName: pluName || ''
+  };
+  history.unshift(entry);
+  localStorage.setItem('plu_history', JSON.stringify(history.slice(0, 20)));
+  renderHistory();
+}
+
+function renderHistory() {
+  const history = JSON.parse(localStorage.getItem('plu_history') || '[]');
+  const list = document.getElementById('historyList');
+  const empty = document.getElementById('historyEmpty');
+  if (!list) return;
+  if (!history.length) { empty.style.display = 'block'; list.innerHTML = ''; return; }
+  empty.style.display = 'none';
+  list.innerHTML = history.map((h, i) => `
+    <div class="hist-item" onclick="loadHistory(${i})">
+      <div class="hist-date">${h.date}</div>
+      <div class="hist-addr">${h.address}</div>
+      <div class="hist-zone">Zone ${h.zone} · ${h.pluName?.split(' — ')[0] || ''}</div>
+    </div>
+  `).join('');
+}
+
+function loadHistory(i) {
+  const history = JSON.parse(localStorage.getItem('plu_history') || '[]');
+  const h = history[i];
+  if (!h) return;
+  document.getElementById('address').value = h.address;
+  const z = document.getElementById('zone');
+  if (z) z.value = h.zone;
+  checkAll();
+  closeMenu();
+}
+
+// ── PLU AGE CHECK ──
+function checkPluAge(pluName) {
+  const m = pluName?.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (!m) return;
+  const pluDate = new Date(m[3], m[2]-1, m[1]);
+  const diffYears = (new Date() - pluDate) / (1000 * 60 * 60 * 24 * 365);
+  const warn = document.getElementById('pluAgeWarning');
+  if (warn) warn.style.display = diffYears > 2 ? 'block' : 'none';
+}
+
+// ── EXPORT PDF ──
+function exportPDF(type) {
+  const zone = document.getElementById('zone')?.value || '';
+  const addr = document.getElementById('address')?.value || '';
+  const content = document.getElementById('rb-' + type)?.innerHTML || '';
+  const labels = { destination: 'Changement de destination', surelevation: 'Surélévation', extension: 'Extension' };
+  
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <title>Analyse PLU — ${labels[type]}</title>
+    <style>
+      body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }
+      h1 { font-size: 20px; border-bottom: 2px solid #2C4A6E; padding-bottom: 10px; color: #2C4A6E; }
+      .meta { font-size: 12px; color: #666; margin-bottom: 24px; }
+      h2 { font-size: 15px; font-weight: 600; margin: 20px 0 8px; color: #1a1a1a; border-left: 3px solid #2C4A6E; padding-left: 10px; }
+      h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #999; margin: 14px 0 6px; }
+      p { font-size: 13px; line-height: 1.8; color: #444; margin-bottom: 7px; }
+      ul { padding-left: 16px; } li { font-size: 13px; line-height: 1.75; color: #444; margin-bottom: 3px; }
+      blockquote { background: #f5f7fa; border-left: 3px solid #2C4A6E; padding: 8px 13px; margin: 8px 0; font-size: 12px; line-height: 1.7; color: #334; border-radius: 0 4px 4px 0; }
+      .v-ok { background: #ecfdf5; color: #065f46; border-radius: 5px; padding: 2px 8px; font-weight: 600; }
+      .v-warn { background: #fffbeb; color: #92400e; border-radius: 5px; padding: 2px 8px; font-weight: 600; }
+      .v-nok { background: #fef2f2; color: #991b1b; border-radius: 5px; padding: 2px 8px; font-weight: 600; }
+      .footer { margin-top: 40px; font-size: 11px; color: #999; border-top: 1px solid #eee; padding-top: 10px; }
+    </style>
+  </head><body>
+    <h1>Analyse PLU — ${labels[type]}</h1>
+    <div class="meta">
+      <strong>Adresse :</strong> ${addr}<br>
+      <strong>Zone :</strong> ${zone}<br>
+      <strong>Date d'analyse :</strong> ${new Date().toLocaleDateString('fr-FR')}
+    </div>
+    ${content}
+    <div class="footer">Document généré par l'Analyseur PLU Batipart — à titre indicatif uniquement. Vérifier avec un professionnel du droit de l'urbanisme.</div>
+  </body></html>`);
+  win.document.close();
+  setTimeout(() => win.print(), 500);
+}
+
+// Init
+renderHistory();
+
+// Patch findZone to save history and check PLU age
+const _origFZ = findZone;
+findZone = async function() {
+  await _origFZ.apply(this, arguments);
+  // Save to history after zone found
+  setTimeout(() => {
+    const addr = document.getElementById('address')?.value;
+    const zone = document.getElementById('zone')?.value;
+    const pluName = document.getElementById('pluOk')?.textContent;
+    if (addr && zone) saveHistory(addr, zone, pluName);
+    if (pluName) checkPluAge(pluName);
+  }, 2000);
+};
+
 </script>
 </body>
 </html>
