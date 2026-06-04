@@ -703,15 +703,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-function loadPdf(file) {
-  if (!file || file.type !== 'application/pdf') return;
-  const fc = document.getElementById('fileChosen');
-  fc.textContent = '✓ ' + file.name;
-  fc.style.display = 'block';
-  const r = new FileReader();
-  r.onload = e => { pluBase64 = e.target.result.split(',')[1]; };
-  r.readAsDataURL(file);
-}
+
 
 function toggleV(id) {
   const b = document.getElementById("vb-" + id);
@@ -838,24 +830,9 @@ function reset(type) {
 
 
 // Input volets (auto/manual)
-function toggleIV(id) {
-  const volet = document.getElementById("iv-" + id);
-  const bd = document.getElementById("ivbd-" + id);
-  const isOpen = volet.classList.contains("open");
-  if (!isOpen) {
-    volet.classList.add("open");
-    bd.style.display = "block";
-  } else {
-    volet.classList.remove("open");
-    bd.style.display = "none";
-  }
-}
 
-function showPluUpload() {
-  document.getElementById("pluAddZone").style.display = "block";
-  document.getElementById("pluAddBtn").querySelector("button") && 
-    (document.getElementById("pluAddBtn").querySelector(".btn-add-plu").style.display = "none");
-}
+
+
 
 // Override findZone to show/hide PLU boxes
 const _origFindZone = findZone;
@@ -894,32 +871,9 @@ if (pluFile2) {
   pluFile2.addEventListener("change", e => loadPdf(e.target.files[0]));
 }
 
-function loadPdfFrom(file, tagId) {
-  if (!file) return;
-  const ft = document.getElementById(tagId);
-  if (ft) { ft.textContent = "✓ " + file.name; ft.style.display = "flex"; }
-  const r = new FileReader();
-  r.onload = e => { pluBase64 = e.target.result.split(",")[1]; checkAll(); };
-  r.readAsDataURL(file);
-}
 
-// File upload
-const fileInput = document.getElementById("pluFile");
-const dropZone = document.getElementById("dropZone");
-fileInput.addEventListener("change", e => loadPdf(e.target.files[0]));
-dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("over"); });
-dropZone.addEventListener("dragleave", () => dropZone.classList.remove("over"));
-dropZone.addEventListener("drop", e => { e.preventDefault(); dropZone.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f?.type==="application/pdf") loadPdf(f); });
 
-function loadPdf(file) {
-  if (!file) return;
-  const ft = document.getElementById("fileTag");
-  ft.textContent = "✓ " + file.name;
-  ft.style.display = "flex";
-  const r = new FileReader();
-  r.onload = e => { pluBase64 = e.target.result.split(",")[1]; };
-  r.readAsDataURL(file);
-}
+
 </script>
 </body>
 </html>
