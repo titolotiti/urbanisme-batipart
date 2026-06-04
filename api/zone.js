@@ -20,6 +20,19 @@ export default async function handler(req, res) {
     return ` — ${d.slice(6)}/${d.slice(4,6)}/${d.slice(0,4)}`;
   }
 
+  // Construit l'URL règlement depuis les champs APICarto document
+  // Props contient: id (hash), name ("92051_PLU_20210629"), grid_name ("92051")
+  function buildUrlFromDocProps(props) {
+    const hash = props.id || props.gpu_doc_id;
+    const name = props.name; // ex: "92051_PLU_20210629"
+    const codgeo = props.grid_name || name?.match(/^(\d+)_/)?.[1];
+    const date = name?.match(/(\d{8})$/)?.[1];
+    if (hash && codgeo && date) {
+      return `https://data.geopf.fr/annexes/gpu/documents/DU_${codgeo}/${hash}/${codgeo}_reglement_${date}.pdf`;
+    }
+    return null;
+  }
+
   try {
     // ─── 1. Géocodage ───
     const geoR = await fetch(
@@ -40,7 +53,7 @@ export default async function handler(req, res) {
     const geomStr = JSON.stringify({ type: 'Point', coordinates: [lon, lat] });
 
     // ─── 2. Zone PLU ───
-    let zone = null, partition = null;
+    let zone = null;
     try {
       const zR = await fetch(
         `https://apicarto.ign.fr/api/gpu/zone-urba?geom=${encodeURIComponent(geomStr)}`,
@@ -53,9 +66,13 @@ export default async function handler(req, res) {
       }
     } catch(e) { console.log('Zone err:', e.message); }
 
-    // ─── 3. Récupérer le document PLU ───
-    // APICarto /api/gpu/document avec geometry → retourne la vraie partition
-    let docPartition = null, docProps = null;
+    // ─── 3. Document PLU — LA CLÉ ───
+    // APICarto /api/gpu/document avec geometry retourne :
+    //   id / gpu_doc_id = hash pour data.geopf.fr
+    //   name = "92051_PLU_20210629" → contient codgeo + date
+    //   grid_name = "92051" → codgeo
+    let pluUrl = null, pluName = null, partition = null;
+
     try {
       const dR = await fetch(
         `https://apicarto.ign.fr/api/gpu/document?geom=${encodeURIComponent(geomStr)}`,
@@ -63,79 +80,20 @@ export default async function handler(req, res) {
       );
       const dD = await dR.json();
       if (dD.features?.length) {
-        docProps = dD.features[0].properties;
-        docPartition = docProps.partition || null;
-        console.log('APICarto document props:', JSON.stringify(docProps));
+        const props = dD.features[0].properties;
+        partition = props.partition || props.name || null;
+        console.log('Doc props:', JSON.stringify(props));
+
+        const url = buildUrlFromDocProps(props);
+        if (url) {
+          pluUrl = url;
+          pluName = `${props.du_type || 'PLU'} ${props.grid_title || city}` + fmtDate(url);
+          console.log('✓ URL construite depuis APICarto document:', pluUrl);
+        }
       }
     } catch(e) { console.log('Document err:', e.message); }
 
-    partition = docPartition;
-
-    // ─── 4. Trouver l'URL du règlement ───
-    let pluUrl = null, pluName = null;
-
-    // SOURCE 1 : GPU Géoportail API — recherche par codgeo
-    // Retourne le document avec son hash, depuis lequel on construit l'URL
-    try {
-      const gpuR = await fetch(
-        `https://www.geoportail-urbanisme.gouv.fr/api/document?codgeo=${citycode}&_limit=5&etat=APPROUVE`,
-        { headers: { ...H, 'Accept': 'application/json' } }
-      );
-      if (gpuR.ok) {
-        const gpuD = await gpuR.json();
-        console.log('GPU API response:', JSON.stringify(gpuD).slice(0, 300));
-        
-        // Cherche le document PLU/PLUi le plus récent
-        const docs = gpuD.results || gpuD.data || (Array.isArray(gpuD) ? gpuD : []);
-        const doc = docs.find(d => ['PLU','PLUi','CC'].includes(d.typeDocument)) || docs[0];
-        
-        if (doc?.id && doc?.partition) {
-          const m = doc.partition.match(/^(\d+)_[^_]+_(\d{8})$/);
-          if (m) {
-            const [, codgeo, date] = m;
-            const url = `https://data.geopf.fr/annexes/gpu/documents/DU_${codgeo}/${doc.id}/${codgeo}_reglement_${date}.pdf`;
-            pluUrl = url;
-            pluName = `${doc.typeDocument} ${city}` + fmtDate(url);
-            console.log('✓ GPU API:', pluUrl);
-          }
-        }
-      }
-    } catch(e) { console.log('GPU API err:', e.message); }
-
-    // SOURCE 2 : Chercher le règlement via DuckDuckGo
-    // Recherche directe sur data.geopf.fr pour la commune
-    if (!pluUrl) {
-      try {
-        const query = `${city} PLU règlement écrit PDF site:data.geopf.fr reglement`;
-        const ddgR = await fetch(
-          `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
-          { 
-            headers: { 
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Accept': 'text/html'
-            } 
-          }
-        );
-        if (ddgR.ok) {
-          const html = await ddgR.text();
-          // Cherche les URLs data.geopf.fr/annexes/gpu/documents contenant "reglement"
-          const matches = html.match(/https:\/\/data\.geopf\.fr\/annexes\/gpu\/documents\/[^"'\s<>]+reglement[^"'\s<>]*\.pdf/gi) || [];
-          // Prend l'URL la plus récente (date la plus haute dans le nom)
-          const sorted = matches.sort((a, b) => {
-            const da = a.match(/_(\d{8})\.pdf$/)?.[1] || '0';
-            const db = b.match(/_(\d{8})\.pdf$/)?.[1] || '0';
-            return db.localeCompare(da);
-          });
-          if (sorted[0]) {
-            pluUrl = sorted[0];
-            pluName = `PLU ${city}` + fmtDate(pluUrl);
-            console.log('✓ DuckDuckGo search:', pluUrl);
-          }
-        }
-      } catch(e) { console.log('DDG search err:', e.message); }
-    }
-
-    // SOURCE 3 : Base de données minimale (backup)
+    // ─── 4. Fallback base de données ───
     if (!pluUrl) {
       const BNS = 'https://data.geopf.fr/annexes/gpu/documents/DU_200057990/35b89739df91562887f9e4623801ace5/200057990_reglement_20260217.pdf';
       const GPSO = 'https://data.geopf.fr/annexes/gpu/documents/DU_200057974/da0d24dad863b8b32a2323bc49cd389e/200057974_reglement_20251202.pdf';
@@ -147,16 +105,15 @@ export default async function handler(req, res) {
         '92004':[BNS,'PLUi BNS'],'92009':[BNS,'PLUi BNS'],'92024':[BNS,'PLUi BNS'],
         '92025':[BNS,'PLUi BNS'],'92036':[BNS,'PLUi BNS'],'92078':[BNS,'PLUi BNS'],
         '95018':[BNS,'PLUi BNS'],
-        '92051':['https://data.geopf.fr/annexes/gpu/documents/DU_92051/e6c8855ff88ca1b7823c688132f2d6f1/92051_reglement_20210629.pdf','PLU Neuilly-sur-Seine'],
         '92075':['https://www.suresnes.fr/wp-content/uploads/2024/07/4.1-Reglement-PLU-Suresnes-Modification-26-06-2024-V2.pdf','PLU Suresnes'],
         '94037':['https://www.ville-gentilly.fr/sites/default/files/modification_ndeg6_du_plu_-_reglement_ecrit.pdf','PLU Gentilly'],
       };
       const partCodgeo = partition?.match(/^(\d+)_/)?.[1];
       const entry = DB[citycode] || (partCodgeo && DB[partCodgeo]);
-      if (entry) { [pluUrl, pluName] = entry; }
+      if (entry) { [pluUrl, pluName] = entry; console.log('✓ DB fallback:', citycode); }
     }
 
-    console.log('FINAL:', { citycode, zone, partition, city, found: !!pluUrl });
+    console.log('FINAL:', { citycode, zone, partition, found: !!pluUrl });
     return res.status(200).json({
       success: true, address: label,
       coordinates: { lat, lon },
