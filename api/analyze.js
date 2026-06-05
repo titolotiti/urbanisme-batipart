@@ -29,9 +29,9 @@ const OPERATIONS = {
   extension: "Extension — agrandissement (emprise au sol, reculs, implantation)"
 };
 
-async function extractZoneFromPdf(pdfBuf, zone) {
+async function extractZoneFromPdf(pdfSource, zone) {
   const pdf = await getDocument({
-    data: new Uint8Array(pdfBuf),
+    ...pdfSource,
     isEvalSupported: false,
     useSystemFonts: true
   }).promise;
@@ -96,19 +96,28 @@ export default async function handler(req, res) {
   const prompt = BASE_PROMPT.replace('{ZONE}', zone).replace('{OPERATION}', OPERATIONS[analysisType] || analysisType);
 
   try {
-    // 1. Récupère le PDF (téléchargement ou base64)
-    let pdfBuf;
+    // 1. Charge le PDF
+    // Si base64 (upload manuel) → buffer en mémoire
+    // Si URL → pdfjs charge page par page via Range requests (pas de download complet !)
+    let pdfSource;
     if (pluBase64) {
-      pdfBuf = Buffer.from(pluBase64, 'base64');
+      const pdfBuf = Buffer.from(pluBase64, 'base64');
+      pdfSource = { data: new Uint8Array(pdfBuf) };
+      console.log('Source: base64');
     } else {
-      const r = await fetch(pluUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-      if (!r.ok) throw new Error(`Téléchargement échoué (${r.status})`);
-      pdfBuf = Buffer.from(await r.arrayBuffer());
-      console.log('PDF téléchargé:', Math.round(pdfBuf.length / 1024 / 1024), 'MB');
+      pdfSource = {
+        url: pluUrl,
+        httpHeaders: { 'User-Agent': 'Mozilla/5.0' },
+        rangeChunkSize: 65536,     // 64KB par chunk
+        disableAutoFetch: true,    // Ne précharge pas tout
+        isEvalSupported: false,
+        useSystemFonts: true,
+      };
+      console.log('Source: URL Range requests →', pluUrl);
     }
 
-    // 2. pdfjs extrait les articles de la zone
-    const zoneText = await extractZoneFromPdf(pdfBuf, zone);
+    // 2. pdfjs extrait les articles de la zone (s'arrête dès que c'est fait)
+    const zoneText = await extractZoneFromPdf(pdfSource, zone);
     if (!zoneText) throw new Error(`Zone "${zone}" introuvable dans le document`);
     console.log('Texte extrait:', zoneText.length, 'chars');
 
