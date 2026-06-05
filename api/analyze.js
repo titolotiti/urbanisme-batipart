@@ -1,7 +1,7 @@
 const BASE_PROMPT = `Tu es un expert en droit de l'urbanisme français.
 Analyse le règlement PLU (zone {ZONE}) pour l'opération suivante : {OPERATION}
 
-Réponds avec ces 3 sections. Pour chaque affirmation, cite immédiatement le passage exact du règlement qui la justifie — suffisamment long pour être compris seul.
+Réponds avec ces 3 sections. Pour chaque affirmation, cite immédiatement le passage exact du règlement.
 
 ---
 
@@ -9,10 +9,10 @@ Réponds avec ces 3 sections. Pour chaque affirmation, cite immédiatement le pa
 
 **Verdict :** ✅ Possible / ⚠️ Possible sous conditions / ❌ Interdit / ❓ Non précisé
 
-Explication en 2-3 phrases claires.
+Explication en 2-3 phrases.
 
 > *Page XX — Article YY :*
-> "Passage complet du règlement justifiant ce verdict."
+> "Passage complet du règlement."
 
 ---
 
@@ -20,31 +20,30 @@ Explication en 2-3 phrases claires.
 
 **Obligation :** [Oui X% / Non / Non mentionné]
 
-Explique la règle en une phrase.
-
 > *Page XX — Article YY :*
-> "Passage exact et complet sur les obligations de mixité sociale."
+> "Passage exact sur la mixité sociale."
 
 ---
 
 ## ③ Conditions et contraintes
 
-Pour chaque condition :
-
 **[Nom de la condition]**
-Ce que ça implique concrètement.
+Ce que ça implique.
 > *Page XX — Article YY :*
-> "Passage exact et suffisamment long du règlement définissant cette condition."
+> "Passage exact du règlement."
 
 ---
 
-Règles : texte EXACT entre guillemets, jamais de paraphrase. Indiquer page et article systématiquement.`;
+Règles : texte EXACT entre guillemets, indiquer page et article.`;
 
 const OPERATIONS = {
   destination: "Changement de destination — transformation de bureaux en logements sur bâtiment existant",
   surelevation: "Surélévation d'un bâtiment existant — ajout d'étages (hauteur maximale, gabarit, prospects)",
   extension: "Extension d'un bâtiment existant — agrandissement (emprise au sol, reculs, implantation)"
 };
+
+// Taille max à envoyer à Anthropic (en bytes avant base64)
+const MAX_PDF_BYTES = 2 * 1024 * 1024; // 2MB → ~2.7MB base64
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -65,13 +64,76 @@ export default async function handler(req, res) {
     .replace('{ZONE}', zone)
     .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType);
 
-  // Source du document — URL directe (Claude fetch lui-même) ou base64 (upload manuel)
-  const docSource = pluBase64
-    ? { type: 'base64', media_type: 'application/pdf', data: pluBase64 }
-    : { type: 'url', url: pluUrl };
-
   try {
-    // Appel direct à l'API Anthropic sans SDK — évite tout téléchargement sur Vercel
+    let pdfB64 = pluBase64 || null;
+    let usedUrl = false;
+
+    // Si pas de base64 : essaie d'abord l'URL directe (plus léger)
+    // Si ça échoue (trop grand) : télécharge avec streaming limité
+    if (!pdfB64 && pluUrl) {
+      console.log('Tentative URL directe:', pluUrl);
+
+      // Essai 1 : URL directe (0 download côté Vercel)
+      const testResp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-opus-4-5',
+          max_tokens: 4000,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'document', source: { type: 'url', url: pluUrl } },
+              { type: 'text', text: prompt }
+            ]
+          }]
+        })
+      });
+      const testData = await testResp.json();
+      
+      if (testResp.ok) {
+        return res.status(200).json({
+          success: true, zone, analysisType,
+          result: testData.content[0].text
+        });
+      }
+      
+      // Si erreur taille : télécharge avec streaming limité
+      const errMsg = testData?.error?.message || '';
+      console.log('URL directe échouée:', errMsg);
+      
+      if (errMsg.includes('size') || errMsg.includes('pages') || testResp.status === 400) {
+        console.log('Streaming limité à', MAX_PDF_BYTES, 'bytes...');
+        const pdfR = await fetch(pluUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0', 'Range': `bytes=0-${MAX_PDF_BYTES}` }
+        });
+        const reader = pdfR.body.getReader();
+        const chunks = [];
+        let total = 0;
+        try {
+          while (total < MAX_PDF_BYTES) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const space = MAX_PDF_BYTES - total;
+            chunks.push(value.length > space ? value.slice(0, space) : value);
+            total += Math.min(value.length, space);
+            if (total >= MAX_PDF_BYTES) break;
+          }
+        } finally { reader.cancel().catch(() => {}); }
+        
+        const buf = Buffer.concat(chunks.map(c => Buffer.from(c)));
+        pdfB64 = buf.toString('base64');
+        console.log('Stream:', buf.length, 'bytes → b64:', pdfB64.length, 'chars');
+      } else {
+        throw new Error(errMsg || 'Erreur API');
+      }
+    }
+
+    // Envoi base64
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -85,7 +147,7 @@ export default async function handler(req, res) {
         messages: [{
           role: 'user',
           content: [
-            { type: 'document', source: docSource },
+            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfB64 } },
             { type: 'text', text: prompt }
           ]
         }]
@@ -93,6 +155,7 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
+    console.log('Final result:', response.ok ? 'OK' : data?.error?.message);
     if (!response.ok) throw new Error(JSON.stringify(data.error));
 
     return res.status(200).json({
