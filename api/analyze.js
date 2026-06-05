@@ -1,7 +1,7 @@
 const BASE_PROMPT = `Tu es un expert en droit de l'urbanisme français.
 Analyse le règlement PLU (zone {ZONE}) pour l'opération suivante : {OPERATION}
 
-Réponds avec ces 3 sections. Pour chaque affirmation, cite immédiatement le passage exact du règlement.
+Réponds avec ces 3 sections. Pour chaque affirmation, cite le passage exact du règlement.
 
 ---
 
@@ -42,6 +42,7 @@ const OPERATIONS = {
   extension: "Extension d'un bâtiment existant — agrandissement (emprise au sol, reculs, implantation)"
 };
 
+const MAX_SIZE = 25 * 1024 * 1024; // 25MB max
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -65,17 +66,36 @@ export default async function handler(req, res) {
   try {
     let pdfB64 = pluBase64 || null;
 
-    // Télécharge le PDF complet si pas de base64
     if (!pdfB64 && pluUrl) {
-      console.log('Téléchargement:', pluUrl);
+      // Vérifie la taille avant de télécharger
+      try {
+        const head = await fetch(pluUrl, { method: 'HEAD', headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const size = parseInt(head.headers.get('content-length') || '0');
+        console.log('Taille PDF:', size, 'bytes =', Math.round(size/1024/1024), 'MB');
+
+        if (size > MAX_SIZE) {
+          return res.status(400).json({
+            error: `Le règlement PLU est trop volumineux (${Math.round(size/1024/1024)}MB) pour être analysé automatiquement.\n\nSolution : téléchargez le PLU via le lien fourni, trouvez les articles de la zone "${zone}" et uploadez uniquement cette section via l'option "Remplacer par un autre PLU".`
+          });
+        }
+      } catch(e) { console.log('HEAD err:', e.message); }
+
+      // Télécharge le PDF complet
       const pdfR = await fetch(pluUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
       if (!pdfR.ok) throw new Error(`Erreur téléchargement (${pdfR.status})`);
       const buf = Buffer.from(await pdfR.arrayBuffer());
+      console.log('PDF téléchargé:', buf.length, 'bytes');
+
+      if (buf.length > MAX_SIZE) {
+        return res.status(400).json({
+          error: `Le règlement PLU est trop volumineux (${Math.round(buf.length/1024/1024)}MB).\n\nSolution : téléchargez le PLU, trouvez les articles de la zone "${zone}" et uploadez uniquement cette section manuellement.`
+        });
+      }
+
       pdfB64 = buf.toString('base64');
-      console.log(`PDF: ${buf.length} bytes → b64: ${pdfB64.length} chars`);
     }
 
-    // Appel Anthropic avec beta PDF header
+    // Appel Anthropic avec beta PDF
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -98,16 +118,13 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-    console.log('Résultat:', response.ok ? 'OK' : data?.error?.message);
+    console.log('API result:', response.ok ? 'OK' : data?.error?.message);
     if (!response.ok) throw new Error(JSON.stringify(data.error));
 
-    return res.status(200).json({
-      success: true, zone, analysisType,
-      result: data.content[0].text
-    });
+    return res.status(200).json({ success: true, zone, analysisType, result: data.content[0].text });
 
   } catch(err) {
-    console.error('Erreur analyze:', err.message);
+    console.error('Erreur:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }
