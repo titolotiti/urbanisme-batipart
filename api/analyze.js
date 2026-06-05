@@ -1,4 +1,10 @@
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+// Configure le worker pour Node.js/Vercel
+GlobalWorkerOptions.workerSrc = join(__dirname, '..', 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.worker.mjs');
 
 const BASE_PROMPT = `Tu es un expert en droit de l'urbanisme français.
 Analyse le règlement PLU (zone {ZONE}) pour l'opération suivante : {OPERATION}
