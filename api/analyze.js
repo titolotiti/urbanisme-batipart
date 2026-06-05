@@ -1,9 +1,6 @@
+// pdfjs en mode URL n'a pas besoin du worker
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-GlobalWorkerOptions.workerSrc = join(__dirname, '..', 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.worker.mjs');
+GlobalWorkerOptions.workerSrc = '';
 
 const BASE_PROMPT = `Tu es un expert en droit de l'urbanisme français.
 Analyse le règlement PLU (zone {ZONE}) pour l'opération : {OPERATION}
@@ -29,56 +26,40 @@ const OPERATIONS = {
   extension: "Extension — agrandissement (emprise au sol, reculs, implantation)"
 };
 
-async function extractZoneFromPdf(pdfSource, zone) {
-  const pdf = await getDocument({
-    ...pdfSource,
-    isEvalSupported: false,
-    useSystemFonts: true
-  }).promise;
-
+async function extractZone(source, zone) {
+  const pdf = await getDocument(source).promise;
   const total = pdf.numPages;
-  const zoneUp = zone.toUpperCase();
-  const baseZone = zone.replace(/\d+/g, '').toUpperCase();
-  console.log(`pdfjs: ${total} pages, cherche zone ${zone}`);
+  const zUp = zone.toUpperCase();
+  const zBase = zone.replace(/\d+/g, '').toUpperCase();
+  console.log(`${total} pages, zone ${zone}`);
 
-  let generalText = '';
-  let zoneText = '';
-  let inZone = false;
-  let foundZone = false;
-  let pagesAfterZone = 0;
+  let general = '', zoneText = '', inZone = false, found = false, tail = 0;
 
   for (let i = 1; i <= total; i++) {
     const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const pageText = content.items.map(s => s.str).join(' ');
-    const up = pageText.toUpperCase();
+    const items = await page.getTextContent();
+    const text = items.items.map(s => s.str).join(' ');
+    const up = text.toUpperCase();
 
-    // Garde les dispositions générales (20 premières pages)
-    if (i <= 20 && (up.includes('DISPOSITION') || up.includes('DÉFINITION') || up.includes('TITRE I'))) {
-      generalText += `\n--- PAGE ${i} ---\n${pageText}`;
-    }
+    if (i <= 20 && (up.includes('DISPOSITION') || up.includes('DÉFINITION')))
+      general += `\n--- PAGE ${i} ---\n${text}`;
 
-    // Début zone
-    if (!inZone && (up.includes(`ZONE ${zoneUp}`) || up.match(new RegExp(`\\bZONE\\s+${zoneUp}\\b`)))) {
-      inZone = true;
-      foundZone = true;
-      console.log(`Zone ${zone} trouvée page ${i}`);
-    }
-    if (inZone) zoneText += `\n--- PAGE ${i} ---\n${pageText}`;
+    if (!inZone && (up.includes(`ZONE ${zUp}`) || up.match(new RegExp(`\\bZONE\\s+${zUp}\\b`))))
+      { inZone = true; found = true; console.log(`Trouvée p.${i}`); }
 
-    // Fin zone : autre zone détectée
+    if (inZone) zoneText += `\n--- PAGE ${i} ---\n${text}`;
+
     if (inZone && zoneText.length > 1000) {
-      const autres = [...up.matchAll(/ZONE\s+([A-Z]+\d*)/g)].map(m => m[1]);
-      if (autres.find(z => z !== zoneUp && z !== baseZone)) {
-        if (++pagesAfterZone >= 2) { console.log(`Fin zone page ${i}`); break; }
-      } else pagesAfterZone = 0;
+      const other = [...up.matchAll(/ZONE\s+([A-Z]+\d*)/g)].map(m => m[1])
+        .find(z => z !== zUp && z !== zBase);
+      if (other) { if (++tail >= 2) { console.log(`Fin p.${i}`); break; } }
+      else tail = 0;
     }
-
-    if (i >= 200 && !foundZone) break;
-    if (i >= 150 && foundZone) break;
+    if (!found && i >= 200) break;
+    if (found && i >= 150) break;
   }
 
-  return (generalText + zoneText).slice(0, 80000) || null;
+  return found ? (general + zoneText).slice(0, 80000) : null;
 }
 
 export default async function handler(req, res) {
@@ -89,55 +70,34 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { zone, analysisType, pluUrl, pluBase64 } = req.body;
-  if (!zone || !analysisType || (!pluUrl && !pluBase64)) return res.status(400).json({ error: 'Paramètres manquants' });
+  if (!zone || !analysisType || (!pluUrl && !pluBase64))
+    return res.status(400).json({ error: 'Paramètres manquants' });
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Clé API non configurée' });
 
-  const prompt = BASE_PROMPT.replace('{ZONE}', zone).replace('{OPERATION}', OPERATIONS[analysisType] || analysisType);
+  const prompt = BASE_PROMPT.replace('{ZONE}', zone)
+    .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType);
 
   try {
-    // 1. Charge le PDF
-    // Si base64 (upload manuel) → buffer en mémoire
-    // Si URL → pdfjs charge page par page via Range requests (pas de download complet !)
-    let pdfSource;
-    if (pluBase64) {
-      const pdfBuf = Buffer.from(pluBase64, 'base64');
-      pdfSource = { data: new Uint8Array(pdfBuf) };
-      console.log('Source: base64');
-    } else {
-      pdfSource = {
-        url: pluUrl,
-        httpHeaders: { 'User-Agent': 'Mozilla/5.0' },
-        rangeChunkSize: 65536,     // 64KB par chunk
-        disableAutoFetch: true,    // Ne précharge pas tout
-        isEvalSupported: false,
-        useSystemFonts: true,
-      };
-      console.log('Source: URL Range requests →', pluUrl);
-    }
+    // Source pdfjs — URL = Range requests (zéro download complet)
+    // base64 = upload manuel de l'utilisateur
+    const source = pluBase64
+      ? { data: new Uint8Array(Buffer.from(pluBase64, 'base64')), isEvalSupported: false }
+      : { url: pluUrl, httpHeaders: { 'User-Agent': 'Mozilla/5.0' },
+          rangeChunkSize: 65536, disableAutoFetch: true, isEvalSupported: false };
 
-    // 2. pdfjs extrait les articles de la zone (s'arrête dès que c'est fait)
-    const zoneText = await extractZoneFromPdf(pdfSource, zone);
-    if (!zoneText) throw new Error(`Zone "${zone}" introuvable dans le document`);
+    const zoneText = await extractZone(source, zone);
+    if (!zoneText) return res.status(400).json({ error: `Zone "${zone}" introuvable dans le document` });
     console.log('Texte extrait:', zoneText.length, 'chars');
 
-    // 3. Claude analyse le texte
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-5',
-        max_tokens: 4000,
-        messages: [{ role: 'user', content: `Extraits règlement PLU zone ${zone} :\n\n${zoneText}\n\n---\n\n${prompt}` }]
-      })
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-opus-4-5', max_tokens: 4000,
+        messages: [{ role: 'user', content: `Extraits règlement zone ${zone} :\n\n${zoneText}\n\n---\n\n${prompt}` }] })
     });
     const d = await r.json();
     if (!r.ok) throw new Error(JSON.stringify(d.error));
-
     return res.status(200).json({ success: true, zone, analysisType, result: d.content[0].text });
 
   } catch(err) {
