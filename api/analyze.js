@@ -36,11 +36,14 @@ const OPERATIONS = {
   extension: "Extension d'un bâtiment existant — agrandissement (emprise au sol, reculs, implantation)"
 };
 
-// Extrait le texte d'un PDF buffer via pdfjs-dist
-async function extractPdfText(pdfBuffer) {
-  const data = new Uint8Array(pdfBuffer);
-  const pdf = await getDocument({ data, useSystemFonts: true, isEvalSupported: false }).promise;
-  console.log('PDF pages:', pdf.numPages);
+// Extrait le texte d'un PDF — accepte un buffer OU un objet PDF déjà chargé
+async function extractPdfText(pdfBuffer, existingPdf = null) {
+  let pdf = existingPdf;
+  if (!pdf) {
+    const data = new Uint8Array(pdfBuffer);
+    pdf = await getDocument({ data, useSystemFonts: true, isEvalSupported: false }).promise;
+  }
+  console.log('Extraction:', pdf.numPages, 'pages');
   
   let fullText = '';
   for (let i = 1; i <= pdf.numPages; i++) {
@@ -106,24 +109,45 @@ export default async function handler(req, res) {
     .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType);
 
   try {
-    // Récupère le PDF
-    let pdfBuffer;
+    // Extraction intelligente du PDF
+    // Si URL : pdfjs charge par morceaux via Range requests (pas de download complet)
+    // Si base64 : charge depuis le buffer
+    let zoneText = '';
+
     if (pluBase64) {
-      pdfBuffer = Buffer.from(pluBase64, 'base64');
+      const pdfBuffer = Buffer.from(pluBase64, 'base64');
+      const fullText = await extractPdfText(pdfBuffer);
+      zoneText = extractZoneSection(fullText, zone);
+      console.log('Base64 → texte zone:', zoneText.length, 'chars');
     } else {
-      const pdfR = await fetch(pluUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-      if (!pdfR.ok) throw new Error(`Erreur téléchargement (${pdfR.status})`);
-      pdfBuffer = Buffer.from(await pdfR.arrayBuffer());
-      console.log('PDF:', pdfBuffer.length, 'bytes');
+      // pdfjs-dist avec URL directe — utilise HTTP Range requests automatiquement
+      // Charge seulement les pages nécessaires, pas tout le fichier
+      console.log('Chargement PDF par URL:', pluUrl);
+      try {
+        const pdf = await getDocument({
+          url: pluUrl,
+          httpHeaders: { 'User-Agent': 'Mozilla/5.0' },
+          rangeChunkSize: 65536,
+          disableAutoFetch: false,
+          isEvalSupported: false,
+          useSystemFonts: true,
+        }).promise;
+        
+        console.log('PDF chargé:', pdf.numPages, 'pages');
+        const fullText = await extractPdfText(null, pdf);
+        zoneText = extractZoneSection(fullText, zone);
+        console.log('URL → texte zone:', zoneText.length, 'chars');
+      } catch(urlErr) {
+        // Fallback : download complet si Range non supporté
+        console.log('Fallback download complet:', urlErr.message);
+        const pdfR = await fetch(pluUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (!pdfR.ok) throw new Error(`Erreur téléchargement (${pdfR.status})`);
+        const pdfBuffer = Buffer.from(await pdfR.arrayBuffer());
+        console.log('Downloaded:', pdfBuffer.length, 'bytes');
+        const fullText = await extractPdfText(pdfBuffer);
+        zoneText = extractZoneSection(fullText, zone);
+      }
     }
-
-    // Extrait le texte avec pdfjs-dist (pas de limite de pages)
-    const fullText = await extractPdfText(pdfBuffer);
-    console.log('Texte total:', fullText.length, 'chars');
-
-    // Extrait uniquement la section de la zone
-    const zoneText = extractZoneSection(fullText, zone);
-    console.log('Texte zone:', zoneText.length, 'chars');
 
     // Analyse avec Claude (texte = pas de limite de pages)
     const response = await fetch('https://api.anthropic.com/v1/messages', {
