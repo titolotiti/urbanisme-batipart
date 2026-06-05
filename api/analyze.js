@@ -42,8 +42,6 @@ const OPERATIONS = {
   extension: "Extension d'un bâtiment existant — agrandissement (emprise au sol, reculs, implantation)"
 };
 
-// Taille max à envoyer à Anthropic (en bytes avant base64)
-const MAX_PDF_BYTES = 2 * 1024 * 1024; // 2MB → ~2.7MB base64
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -66,80 +64,25 @@ export default async function handler(req, res) {
 
   try {
     let pdfB64 = pluBase64 || null;
-    let usedUrl = false;
 
-    // Si pas de base64 : essaie d'abord l'URL directe (plus léger)
-    // Si ça échoue (trop grand) : télécharge avec streaming limité
+    // Télécharge le PDF complet si pas de base64
     if (!pdfB64 && pluUrl) {
-      console.log('Tentative URL directe:', pluUrl);
-
-      // Essai 1 : URL directe (0 download côté Vercel)
-      const testResp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-opus-4-5',
-          max_tokens: 4000,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'document', source: { type: 'url', url: pluUrl } },
-              { type: 'text', text: prompt }
-            ]
-          }]
-        })
-      });
-      const testData = await testResp.json();
-      
-      if (testResp.ok) {
-        return res.status(200).json({
-          success: true, zone, analysisType,
-          result: testData.content[0].text
-        });
-      }
-      
-      // Si erreur taille : télécharge avec streaming limité
-      const errMsg = testData?.error?.message || '';
-      console.log('URL directe échouée:', errMsg);
-      
-      if (errMsg.includes('size') || errMsg.includes('pages') || testResp.status === 400) {
-        console.log('Streaming limité à', MAX_PDF_BYTES, 'bytes...');
-        const pdfR = await fetch(pluUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0', 'Range': `bytes=0-${MAX_PDF_BYTES}` }
-        });
-        const reader = pdfR.body.getReader();
-        const chunks = [];
-        let total = 0;
-        try {
-          while (total < MAX_PDF_BYTES) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const space = MAX_PDF_BYTES - total;
-            chunks.push(value.length > space ? value.slice(0, space) : value);
-            total += Math.min(value.length, space);
-            if (total >= MAX_PDF_BYTES) break;
-          }
-        } finally { reader.cancel().catch(() => {}); }
-        
-        const buf = Buffer.concat(chunks.map(c => Buffer.from(c)));
-        pdfB64 = buf.toString('base64');
-        console.log('Stream:', buf.length, 'bytes → b64:', pdfB64.length, 'chars');
-      } else {
-        throw new Error(errMsg || 'Erreur API');
-      }
+      console.log('Téléchargement:', pluUrl);
+      const pdfR = await fetch(pluUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      if (!pdfR.ok) throw new Error(`Erreur téléchargement (${pdfR.status})`);
+      const buf = Buffer.from(await pdfR.arrayBuffer());
+      pdfB64 = buf.toString('base64');
+      console.log(`PDF: ${buf.length} bytes → b64: ${pdfB64.length} chars`);
     }
 
-    // Envoi base64
+    // Appel Anthropic avec beta PDF header
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'pdfs-2024-09-25',
       },
       body: JSON.stringify({
         model: 'claude-opus-4-5',
@@ -155,7 +98,7 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-    console.log('Final result:', response.ok ? 'OK' : data?.error?.message);
+    console.log('Résultat:', response.ok ? 'OK' : data?.error?.message);
     if (!response.ok) throw new Error(JSON.stringify(data.error));
 
     return res.status(200).json({
