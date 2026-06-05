@@ -70,9 +70,16 @@ export default async function handler(req, res) {
     }
 
     // ── Étape 1 : Upload via Files API (bypass limite 100 pages) ──
-    const formData = new FormData();
-    formData.append('file', new Blob([pdfBuf], { type: 'application/pdf' }), 'reglement.pdf');
-    formData.append('purpose', 'assistants');
+    // Construction manuelle du multipart (évite FormData/Blob)
+    const boundary = 'boundary' + Date.now();
+    const CRLF = '\r\n';
+    const bodyParts = [
+      Buffer.from(`--${boundary}${CRLF}Content-Disposition: form-data; name="purpose"${CRLF}${CRLF}assistants${CRLF}`),
+      Buffer.from(`--${boundary}${CRLF}Content-Disposition: form-data; name="file"; filename="reglement.pdf"${CRLF}Content-Type: application/pdf${CRLF}${CRLF}`),
+      pdfBuf,
+      Buffer.from(`${CRLF}--${boundary}--${CRLF}`)
+    ];
+    const multipartBody = Buffer.concat(bodyParts);
 
     const uploadResp = await fetch('https://api.anthropic.com/v1/files', {
       method: 'POST',
@@ -80,8 +87,9 @@ export default async function handler(req, res) {
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
         'anthropic-beta': 'files-api-2025-04-14',
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
       },
-      body: formData
+      body: multipartBody
     });
     const uploadData = await uploadResp.json();
     console.log('Upload result:', JSON.stringify(uploadData).slice(0, 200));
