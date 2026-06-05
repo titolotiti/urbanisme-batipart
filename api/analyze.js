@@ -1,3 +1,5 @@
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+
 const BASE_PROMPT = `Tu es un expert en droit de l'urbanisme français.
 Analyse le règlement PLU (zone {ZONE}) pour l'opération suivante : {OPERATION}
 
@@ -28,6 +30,56 @@ const OPERATIONS = {
   extension: "Extension d'un bâtiment existant — agrandissement (emprise au sol, reculs, implantation)"
 };
 
+// Extrait le texte d'un PDF buffer via pdfjs-dist
+async function extractPdfText(pdfBuffer) {
+  const data = new Uint8Array(pdfBuffer);
+  const pdf = await getDocument({ data, useSystemFonts: true, isEvalSupported: false }).promise;
+  console.log('PDF pages:', pdf.numPages);
+  
+  let fullText = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items.map(item => item.str).join(' ');
+    fullText += `\n--- PAGE ${i} ---\n${pageText}`;
+  }
+  return fullText;
+}
+
+// Extrait uniquement la section de la zone dans le texte complet
+function extractZoneSection(fullText, zone) {
+  const lines = fullText.split('\n');
+  const zoneUpper = zone.toUpperCase();
+  const baseZone = zone.replace(/\d/g, '').toUpperCase();
+  
+  let result = [];
+  let capturing = false;
+  let generalSection = [];
+  let inGeneral = false;
+
+  for (const line of lines) {
+    const lineUp = line.toUpperCase();
+    
+    // Dispositions générales
+    if (lineUp.includes('DISPOSITION') && lineUp.includes('GÉNÉRAL')) inGeneral = true;
+    if (inGeneral && lineUp.match(/ZONE\s+[A-Z]/) && !lineUp.includes(baseZone)) inGeneral = false;
+    if (inGeneral) generalSection.push(line);
+
+    // Zone spécifique
+    if (lineUp.includes(`ZONE ${zoneUpper}`) || lineUp.match(new RegExp(`\\bZONE\\s+${zoneUpper}\\b`))) {
+      capturing = true;
+    }
+    if (capturing && lineUp.match(/ZONE\s+[A-Z]/) && !lineUp.includes(zoneUpper) && !lineUp.includes(baseZone)) {
+      capturing = false;
+    }
+    if (capturing) result.push(line);
+  }
+
+  const extracted = [...new Set([...generalSection, ...result])].join('\n');
+  if (extracted.length < 500) return fullText.slice(0, 60000);
+  return extracted.slice(0, 60000);
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -48,88 +100,46 @@ export default async function handler(req, res) {
     .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType);
 
   try {
-    let pdfBuf = null;
-
-    if (!pluBase64 && pluUrl) {
-      // Vérifie taille avant download
-      try {
-        const head = await fetch(pluUrl, { method: 'HEAD', headers: { 'User-Agent': 'Mozilla/5.0' } });
-        const size = parseInt(head.headers.get('content-length') || '0');
-        console.log('PDF size:', size, 'bytes =', Math.round(size/1024/1024), 'MB');
-        if (size > 200 * 1024 * 1024) {
-          return res.status(400).json({ error: `Règlement trop volumineux (${Math.round(size/1024/1024)}MB). Uploadez manuellement la section zone ${zone}.` });
-        }
-      } catch(e) {}
-
+    // Récupère le PDF
+    let pdfBuffer;
+    if (pluBase64) {
+      pdfBuffer = Buffer.from(pluBase64, 'base64');
+    } else {
       const pdfR = await fetch(pluUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
       if (!pdfR.ok) throw new Error(`Erreur téléchargement (${pdfR.status})`);
-      pdfBuf = Buffer.from(await pdfR.arrayBuffer());
-      console.log('PDF téléchargé:', pdfBuf.length, 'bytes');
-    } else if (pluBase64) {
-      pdfBuf = Buffer.from(pluBase64, 'base64');
+      pdfBuffer = Buffer.from(await pdfR.arrayBuffer());
+      console.log('PDF:', pdfBuffer.length, 'bytes');
     }
 
-    // ── Étape 1 : Upload via Files API (bypass limite 100 pages) ──
-    // Construction manuelle du multipart (évite FormData/Blob)
-    const boundary = 'boundary' + Date.now();
-    const CRLF = '\r\n';
-    const bodyParts = [
-      Buffer.from(`--${boundary}${CRLF}Content-Disposition: form-data; name="purpose"${CRLF}${CRLF}assistants${CRLF}`),
-      Buffer.from(`--${boundary}${CRLF}Content-Disposition: form-data; name="file"; filename="reglement.pdf"${CRLF}Content-Type: application/pdf${CRLF}${CRLF}`),
-      pdfBuf,
-      Buffer.from(`${CRLF}--${boundary}--${CRLF}`)
-    ];
-    const multipartBody = Buffer.concat(bodyParts);
+    // Extrait le texte avec pdfjs-dist (pas de limite de pages)
+    const fullText = await extractPdfText(pdfBuffer);
+    console.log('Texte total:', fullText.length, 'chars');
 
-    const uploadResp = await fetch('https://api.anthropic.com/v1/files', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'files-api-2025-04-14',
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-      },
-      body: multipartBody
-    });
-    const uploadData = await uploadResp.json();
-    console.log('Upload result:', JSON.stringify(uploadData).slice(0, 200));
-    if (!uploadResp.ok) throw new Error('Upload échoué: ' + JSON.stringify(uploadData.error));
+    // Extrait uniquement la section de la zone
+    const zoneText = extractZoneSection(fullText, zone);
+    console.log('Texte zone:', zoneText.length, 'chars');
 
-    const fileId = uploadData.id;
-    console.log('File ID:', fileId);
-
-    // ── Étape 2 : Analyse avec file_id ──
+    // Analyse avec Claude (texte = pas de limite de pages)
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'files-api-2025-04-14',
       },
       body: JSON.stringify({
         model: 'claude-opus-4-5',
         max_tokens: 4000,
         messages: [{
           role: 'user',
-          content: [
-            { type: 'document', source: { type: 'file', file_id: fileId } },
-            { type: 'text', text: prompt }
-          ]
+          content: `Voici les extraits du règlement PLU pour la zone ${zone} :\n\n${zoneText}\n\n---\n\n${prompt}`
         }]
       })
     });
 
     const data = await response.json();
-    console.log('Analyse:', response.ok ? 'OK' : data?.error?.message);
-
-    // Supprime le fichier uploadé
-    fetch(`https://api.anthropic.com/v1/files/${fileId}`, {
-      method: 'DELETE',
-      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'files-api-2025-04-14' }
-    }).catch(() => {});
-
     if (!response.ok) throw new Error(JSON.stringify(data.error));
+    
     return res.status(200).json({ success: true, zone, analysisType, result: data.content[0].text });
 
   } catch(err) {
