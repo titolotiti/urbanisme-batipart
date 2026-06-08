@@ -57,19 +57,26 @@ export default async function handler(req, res) {
 
     const geomStr = JSON.stringify({ type: 'Point', coordinates: [lon, lat] });
 
-    // ─── 2. Zone PLU ───
+    // ─── 2. Zone PLU — avec retry si APICarto répond vide ───
     let zone = null;
-    try {
-      const zR = await fetch(
-        `https://apicarto.ign.fr/api/gpu/zone-urba?geom=${encodeURIComponent(geomStr)}`,
-        { headers: H }
-      );
-      const zD = await zR.json();
-      if (zD.features?.length) {
-        const p = zD.features[0].properties;
-        zone = (p.libelle || p.libelong || p.typezone || '').trim().replace(/\s+/g, '');
-      }
-    } catch(e) { console.log('Zone err:', e.message); }
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const zR = await fetch(
+          `https://apicarto.ign.fr/api/gpu/zone-urba?geom=${encodeURIComponent(geomStr)}`,
+          { headers: H }
+        );
+        const zD = await zR.json();
+        if (zD.features?.length) {
+          const p = zD.features[0].properties;
+          zone = (p.libelle || p.libelong || p.typezone || '').trim().replace(/\s+/g, '');
+          if (zone) break; // zone trouvée → on arrête
+        }
+        if (!zone && attempt < 3) {
+          console.log(`Zone vide tentative ${attempt}, retry...`);
+          await new Promise(r => setTimeout(r, 500)); // attend 500ms
+        }
+      } catch(e) { console.log('Zone err:', e.message); }
+    }
 
     // ─── 3. Document PLU ───
     let pluUrl = null, pluName = null, zonageUrl = null, partition = null;
