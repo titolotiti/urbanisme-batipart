@@ -125,7 +125,7 @@ export default async function handler(req, res) {
     }
 
     // Si > 100 pages → scan TOUTES les tranches, collecte tout le contenu pertinent
-    const CHUNK = 50;
+    const CHUNK = 25; // 25 pages par tranche pour rester sous la limite de tokens
     // Zone de base : UDa → UD, UMD → UM, UBc → UB, etc.
     const baseZone = zone.replace(/[a-z]+$/, '').replace(/-[A-Z0-9-]+$/, '') || zone;
     const familleZone = baseZone.replace(/[0-9]+.*$/, '');
@@ -161,7 +161,7 @@ Si ce fragment ne contient rien de tout cela : réponds uniquement "RIEN_ICI".`;
     let zoneContent = '';
     let zoneFound = false;
     let emptyAfterZone = 0;
-    const MAX_CHUNKS = 10; // haiku est rapide → 10 tranches × 50p = 500 pages couvertes // max 6 tranches × 50 pages = 300 pages, évite le timeout
+    const MAX_CHUNKS = 12; // 12 × 25 pages = 300 pages couvertes // max 6 tranches × 50 pages = 300 pages, évite le timeout
     let chunkCount = 0;
 
     for (let from = 0; from < totalPages && chunkCount < MAX_CHUNKS; from += CHUNK) {
@@ -171,6 +171,8 @@ Si ce fragment ne contient rien de tout cela : réponds uniquement "RIEN_ICI".`;
       chunkCount++;
 
       const extract = await extractChunk(apiKey, chunkB64, extractPrompt);
+      // Pause pour respecter la limite de tokens/min
+      if (from + CHUNK < totalPages) await new Promise(r => setTimeout(r, 2000));
       if (!extract.includes('RIEN_ICI')) {
         zoneContent += '\n' + extract;
         console.log(`Contenu trouvé pages ${from+1}-${end} (${extract.length} chars)`);
