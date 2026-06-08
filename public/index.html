@@ -482,6 +482,8 @@ async function findZone() {
     if (d.zone) {
       const zEl = document.getElementById('zone');
       if (zEl) { zEl.value = d.zone; checkAll(); }
+      currentAddress = d.address || '';
+      currentCity = d.cityname || (d.address ? d.address.split(/\s+/).slice(-1)[0] : '');
       showGeo('ok', '✅ <strong>' + d.address + '</strong><br>Zone : <strong style="color:var(--blue);font-size:15px">' + d.zone + '</strong>');
     } else {
       showGeo('warn', '📍 ' + d.address + '<br>⚠️ Zone non trouvée — renseignez manuellement.');
