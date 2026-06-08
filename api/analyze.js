@@ -106,8 +106,8 @@ Copie le texte exact avec numéros d'articles et pages.
 Si rien de pertinent : réponds "RIEN_ICI".`;
 
     // Scan par tranches de 40 pages en parallèle (40p × ~2000 tok/p = 80K tokens, bien sous la limite)
-    const CHUNK = 40;
-    const CONCURRENCY = 2;
+    const CHUNK = 20;
+    const CONCURRENCY = 1;
     const MAX_PAGES = 2000;
     const pagesToScan = Math.min(totalPages, MAX_PAGES);
 
