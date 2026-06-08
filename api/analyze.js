@@ -39,21 +39,32 @@ async function extractPages(pdfBytes, from, to) {
   return { bytes: await dst.save(), total, end };
 }
 
-async function callClaude(apiKey, pdfB64, prompt) {
+async function callAnthropic(apiKey, model, messages, maxTokens = 4000) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
-      model: 'claude-opus-4-5', max_tokens: 4000,
-      messages: [{ role: 'user', content: [
-        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfB64 } },
-        { type: 'text', text: prompt }
-      ]}]
-    })
+    body: JSON.stringify({ model, max_tokens: maxTokens, messages })
   });
   const d = await r.json();
   if (!r.ok) throw new Error(JSON.stringify(d.error));
   return d.content[0].text;
+}
+
+// Extraction rapide avec Haiku (5x plus rapide qu'Opus)
+async function extractChunk(apiKey, pdfB64, prompt) {
+  return callAnthropic(apiKey, 'claude-haiku-4-5-20251001', [{
+    role: 'user', content: [
+      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfB64 } },
+      { type: 'text', text: prompt }
+    ]
+  }], 6000);
+}
+
+// Analyse finale avec Opus (précis)
+async function analyzeText(apiKey, text) {
+  return callAnthropic(apiKey, 'claude-opus-4-5', [{
+    role: 'user', content: text
+  }], 4000);
 }
 
 export default async function handler(req, res) {
@@ -102,7 +113,13 @@ export default async function handler(req, res) {
 
     // Si ≤ 100 pages → envoi direct
     if (totalPages <= 100) {
-      const result = await callClaude(apiKey, Buffer.from(pdfBytes).toString('base64'), prompt);
+      const pdfB64direct = Buffer.from(pdfBytes).toString('base64');
+      const result = await callAnthropic(apiKey, 'claude-opus-4-5', [{
+        role: 'user', content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfB64direct } },
+          { type: 'text', text: prompt }
+        ]
+      }]);
       console.log('✓ Direct (≤100 pages)');
       return res.status(200).json({ success: true, zone, analysisType, result });
     }
@@ -143,23 +160,27 @@ Si ce fragment ne contient rien de tout cela : réponds uniquement "RIEN_ICI".`;
 
     let zoneContent = '';
     let zoneFound = false;
-    let chunksAfterZone = 0;
+    let emptyAfterZone = 0;
+    const MAX_CHUNKS = 10; // haiku est rapide → 10 tranches × 50p = 500 pages couvertes // max 6 tranches × 50 pages = 300 pages, évite le timeout
+    let chunkCount = 0;
 
-    for (let from = 0; from < totalPages; from += CHUNK) {
+    for (let from = 0; from < totalPages && chunkCount < MAX_CHUNKS; from += CHUNK) {
       const { bytes, end } = await extractPages(pdfBytes, from, from + CHUNK);
       const chunkB64 = Buffer.from(bytes).toString('base64');
       console.log(`Scan pages ${from+1}-${end}...`);
+      chunkCount++;
 
-      const extract = await callClaude(apiKey, chunkB64, extractPrompt);
+      const extract = await extractChunk(apiKey, chunkB64, extractPrompt);
       if (!extract.includes('RIEN_ICI')) {
         zoneContent += '\n' + extract;
         console.log(`Contenu trouvé pages ${from+1}-${end} (${extract.length} chars)`);
         zoneFound = true;
+        emptyAfterZone = 0;
       } else if (zoneFound) {
-        // Zone déjà trouvée mais cette tranche est vide → on s'arrête
-        chunksAfterZone++;
-        if (chunksAfterZone >= 1) {
-          console.log('Zone complète, arrêt du scan');
+        emptyAfterZone++;
+        // S'arrête seulement après 2 tranches vides consécutives (zone terminée)
+        if (emptyAfterZone >= 2) {
+          console.log('Zone terminée, arrêt');
           break;
         }
       }
