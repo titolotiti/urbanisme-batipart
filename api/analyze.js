@@ -1,9 +1,9 @@
-// v2 — Haiku extraction + Sonnet analysis + commune context
+// v3 — Table des matières d'abord, puis scan ciblé = ~3 appels au lieu de 36
 import { PDFDocument } from 'pdf-lib';
 
 const BASE_PROMPT = `Tu es un expert en droit de l'urbanisme français.
 Analyse le règlement PLU (zone {ZONE}) pour l'opération : {OPERATION}{COMMUNE}
-IMPORTANT : Si ce règlement couvre plusieurs communes, applique UNIQUEMENT les règles de la commune indiquée ci-dessus.
+IMPORTANT : Si le règlement couvre plusieurs communes, applique UNIQUEMENT les règles de la commune indiquée.
 
 ## ① Faisabilité
 **Verdict :** ✅ Possible / ⚠️ Sous conditions / ❌ Interdit / ❓ Non précisé
@@ -30,9 +30,10 @@ const FALLBACK_URLS = {
   '200057867': 'https://plainecommune.fr/fileadmin/user_upload/Portail_Plaine_Commune/LA_DOC/PROJET_DE_TERRITOIRE/PLUI/PLUi_Exutoire/TOME_4-REGLEMENT_ECRIT_ET_GRAPHIQUE/TOME_4-REGLEMENT_ECRIT/4-1-2_Partie_2_Reglements_de-zones/4-1-2-1_Zones_UMD_UMT_UM_UC_UH_UA_UE_UG_UVP_N_A/200057867_4-1-2-1_Reglements_des_zones.pdf',
 };
 
-async function extractPages(pdfDoc, from, to) {
+async function getPagesBatch(pdfDoc, from, to) {
   const total = pdfDoc.getPageCount();
   const end = Math.min(to, total);
+  if (from >= total) return null;
   const sub = await PDFDocument.create();
   const pages = await sub.copyPages(pdfDoc, [...Array(end - from).keys()].map(i => i + from));
   pages.forEach(p => sub.addPage(p));
@@ -43,16 +44,15 @@ async function callModel(apiKey, content, model) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model, max_tokens: 4000, messages: [{ role: 'user', content }] })
+    body: JSON.stringify({ model, max_tokens: 2000, messages: [{ role: 'user', content }] })
   });
   const d = await r.json();
   if (!r.ok) throw new Error(JSON.stringify(d.error));
   return d.content[0].text;
 }
-// Haiku pour l'extraction (lecture + copie de texte) — 20x moins cher
+
 const callHaiku = (apiKey, content) => callModel(apiKey, content, 'claude-haiku-4-5-20251001');
-// Opus pour l'analyse finale (raisonnement juridique)
-const callOpus = (apiKey, content) => callModel(apiKey, content, 'claude-sonnet-4-6');
+const callSonnet = (apiKey, content) => callModel(apiKey, content, 'claude-sonnet-4-6');
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -62,18 +62,22 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { zone, analysisType, pluUrl, pluBase64, commune, address } = req.body;
+  console.log('Params:', { zone, commune, address: address?.slice(0, 40) });
   if (!zone || !analysisType || (!pluUrl && !pluBase64)) return res.status(400).json({ error: 'Paramètres manquants' });
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Clé API non configurée' });
 
-  const communeInfo = commune ? `\nCommune : ${commune}${address ? ' — Adresse : ' + address : ''}` : '';
+  const communeInfo = commune ? `\nCommune : ${commune}${address ? ' — ' + address : ''}` : '';
   const prompt = BASE_PROMPT
     .replace('{ZONE}', zone)
     .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType)
     .replace('{COMMUNE}', communeInfo);
 
+  const baseZone = zone.replace(/[a-z]+$/, '').replace(/-[A-Z0-9-]+$/, '') || zone;
+  const familleZone = baseZone.replace(/[0-9]+.*$/, '');
+
   try {
-    // Récupère le PDF
+    // Télécharge le PDF
     let pdfBytes;
     if (pluBase64) {
       pdfBytes = Buffer.from(pluBase64, 'base64');
@@ -86,6 +90,7 @@ export default async function handler(req, res) {
         if (size > 30 * 1024 * 1024) {
           const code = url.match(/DU_(\d+)\//)?.[1];
           url = (code && FALLBACK_URLS[code]) || url;
+          console.log('Fallback URL utilisée');
         }
       } catch(e) {}
       const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
@@ -98,52 +103,62 @@ export default async function handler(req, res) {
     const totalPages = pdfDoc.getPageCount();
     console.log('Pages:', totalPages);
 
-    // Variables pour le scan
-    const baseZone = zone.replace(/[a-z]+$/, '').replace(/-[A-Z0-9-]+$/, '') || zone;
-    const familleZone = baseZone.replace(/[0-9]+.*$/, '');
-    const variants = [...new Set([zone, baseZone, familleZone, zone.toUpperCase(), baseZone.toUpperCase()])].filter(v => v).join('", "');
+    // ── APPEL 1 : Pages 1-20 (table des matières + début) ──
+    // Haiku cherche la page exacte de la zone ET extrait les dispositions générales
+    const toc20 = await getPagesBatch(pdfDoc, 0, 20);
+    const tocPrompt = `Ce document est un règlement PLU de ${totalPages} pages.
+1. Trouve la PAGE exacte où commence la zone "${zone}" (ou "${baseZone}") dans ce document. Réponds avec juste le numéro : "PAGE: XX"
+2. Extrait intégralement les dispositions générales et définitions applicables à toutes les zones (si présentes ici).`;
 
-    const extractPrompt = `Ce document est une partie d'un règlement PLU.
-Extrais INTÉGRALEMENT (mot pour mot) tout le texte concernant :
-1. Les dispositions générales applicables à toutes les zones (définitions, règles communes)
-2. La zone "${zone}" et variantes "${variants}" : cherche "ZONE ${zone}", "Zone ${baseZone}", "Article ${baseZone} 1" à "Article ${baseZone} 15", "Chapitre ${baseZone}", et toute section dont le titre contient "${zone}" ou "${baseZone}"
-Inclus : destinations autorisées/interdites, hauteur, emprise, reculs, stationnement, logements sociaux.
-Copie le texte exact avec numéros d'articles et pages.
-Si rien de pertinent : réponds "RIEN_ICI".`;
+    const tocResult = await callHaiku(apiKey, [
+      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: toc20 } },
+      { type: 'text', text: tocPrompt }
+    ]);
+    console.log('TOC result:', tocResult.slice(0, 100));
 
-    // Scan par tranches de 40 pages en parallèle (40p × ~2000 tok/p = 80K tokens, bien sous la limite)
-    const CHUNK = 20;
-    const CONCURRENCY = 1;
-    const MAX_PAGES = 2000;
-    const pagesToScan = Math.min(totalPages, MAX_PAGES);
+    // Extrait le numéro de page
+    const pageMatch = tocResult.match(/PAGE:\s*(\d+)/i);
+    const zoneStartPage = pageMatch ? parseInt(pageMatch[1]) - 1 : null; // 0-indexed
 
-    const allChunks = [];
-    for (let from = 0; from < pagesToScan; from += CHUNK) allChunks.push(from);
+    let zoneContent = tocResult.replace(/PAGE:\s*\d+/i, '').trim();
 
-    const chunkResults = [];
-    for (let i = 0; i < allChunks.length; i += CONCURRENCY) {
-      const batch = allChunks.slice(i, i + CONCURRENCY);
-      const end = Math.min(batch[batch.length-1] + CHUNK, pagesToScan);
-      console.log(`Scan pages ${batch[0]+1}-${end}...`);
+    if (zoneStartPage !== null && zoneStartPage > 20) {
+      // ── APPEL 2 : Pages de la zone (±40 pages autour de la zone) ──
+      const from = Math.max(0, zoneStartPage - 2);
+      const to = Math.min(totalPages, zoneStartPage + 40);
+      console.log(`Zone trouvée page ${zoneStartPage + 1}, scan pages ${from+1}-${to}`);
 
-      if (i > 0) await new Promise(r => setTimeout(r, 1000)); // pause entre batches
-      const results = await Promise.all(batch.map(async (from) => {
-        const b64 = await extractPages(pdfDoc, from, from + CHUNK);
-        return callHaiku(apiKey, [
-          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
-          { type: 'text', text: extractPrompt }
-        ]);
-      }));
-      chunkResults.push(...results);
+      const zoneB64 = await getPagesBatch(pdfDoc, from, to);
+      const zonePrompt = `Extrait INTÉGRALEMENT tous les articles de la zone "${zone}" et "${baseZone}" présents dans ce fragment.
+Inclus : destinations autorisées/interdites, hauteur, emprise, reculs, stationnement, logements sociaux, mixité.
+Copie le texte exact avec numéros d'articles et pages.`;
+
+      const zoneExtract = await callHaiku(apiKey, [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: zoneB64 } },
+        { type: 'text', text: zonePrompt }
+      ]);
+      zoneContent += '\n' + zoneExtract;
+    } else if (zoneStartPage !== null) {
+      // Zone dans les 20 premières pages — déjà dans toc20
+      console.log('Zone dans les 20 premières pages');
+    } else {
+      // Page non trouvée — scan pages 1-60 en fallback
+      console.log('Page non trouvée dans TOC, scan pages 1-60');
+      const fallbackB64 = await getPagesBatch(pdfDoc, 0, 60);
+      const ext = await callHaiku(apiKey, [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: fallbackB64 } },
+        { type: 'text', text: `Extrait tous les articles de la zone "${zone}" ou "${baseZone}" et les dispositions générales. Copie le texte exact.` }
+      ]);
+      zoneContent += '\n' + ext;
     }
 
-    const zoneContent = chunkResults.filter(r => !r.includes('RIEN_ICI')).join('\n');
-    if (!zoneContent) return res.status(400).json({ error: `Zone "${zone}" introuvable dans le document` });
-    console.log('Contenu extrait:', zoneContent.length, 'chars');
+    if (!zoneContent || zoneContent.length < 100) {
+      return res.status(400).json({ error: `Zone "${zone}" introuvable dans le document` });
+    }
 
-    // Analyse finale
-    const contextInfo = commune ? `Commune : ${commune}${address ? ', adresse : ' + address : ''}\nZone : ${zone}\n\n` : `Zone : ${zone}\n\n`;
-    const result = await callOpus(apiKey,
+    // ── APPEL 3 : Analyse finale avec Sonnet ──
+    const contextInfo = commune ? `Commune : ${commune}, adresse : ${address || ''}\nZone : ${zone}\n\n` : `Zone : ${zone}\n\n`;
+    const result = await callSonnet(apiKey,
       contextInfo + `Articles extraits du règlement PLU :\n\n${zoneContent}\n\n---\n\n${prompt}`
     );
 
