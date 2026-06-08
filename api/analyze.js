@@ -108,7 +108,7 @@ export default async function handler(req, res) {
     }
 
     // Si > 100 pages → scan par tranches de 100, cherche la zone
-    const CHUNK = 100;
+    const CHUNK = 50;
     const extractPrompt = `Ce document est une partie d'un règlement PLU. 
 Extrait UNIQUEMENT le texte des articles concernant la zone "${zone}" (y compris les dispositions générales si présentes).
 Si la zone "${zone}" n'est pas dans ce fragment, réponds exactement : "ZONE_NOT_FOUND"
