@@ -120,6 +120,9 @@ Si aucun de ces éléments n'est présent, réponds exactement : "RIEN_ICI"
 Sinon, retourne le texte INTÉGRAL des articles trouvés avec leurs numéros et numéros de pages.`;
 
     let zoneContent = '';
+    let zoneFound = false;
+    let chunksAfterZone = 0;
+
     for (let from = 0; from < totalPages; from += CHUNK) {
       const { bytes, end } = await extractPages(pdfBytes, from, from + CHUNK);
       const chunkB64 = Buffer.from(bytes).toString('base64');
@@ -129,6 +132,14 @@ Sinon, retourne le texte INTÉGRAL des articles trouvés avec leurs numéros et 
       if (!extract.includes('RIEN_ICI')) {
         zoneContent += '\n' + extract;
         console.log(`Contenu trouvé pages ${from+1}-${end} (${extract.length} chars)`);
+        zoneFound = true;
+      } else if (zoneFound) {
+        // Zone déjà trouvée mais cette tranche est vide → on s'arrête
+        chunksAfterZone++;
+        if (chunksAfterZone >= 1) {
+          console.log('Zone complète, arrêt du scan');
+          break;
+        }
       }
     }
 
