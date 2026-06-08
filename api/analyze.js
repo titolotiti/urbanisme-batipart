@@ -1,28 +1,22 @@
 import { PDFDocument } from 'pdf-lib';
 
 const BASE_PROMPT = `Tu es un expert en droit de l'urbanisme français.
-Tu vas recevoir un extrait d'un règlement PLU. 
-
-ÉTAPE 1 — Trouve et extrais tous les articles concernant :
-- La zone "{ZONE}" et ses variantes (ex: si zone=UDa, cherche aussi UD, UD 1, UD 2... ; si zone=UBc, cherche aussi UB ; si zone=UMD, cherche aussi UM)
-- Les dispositions générales applicables à toutes les zones
-
-ÉTAPE 2 — Avec ces articles, analyse pour l'opération : {OPERATION}
+Analyse le règlement PLU (zone {ZONE}) pour l'opération : {OPERATION}
 
 ## ① Faisabilité
-**Verdict :** ✅ Possible / ⚠️ Sous conditions / ❌ Interdit / ❓ Non précisé dans les articles trouvés
-Explication 2-3 phrases basée sur les articles trouvés.
+**Verdict :** ✅ Possible / ⚠️ Sous conditions / ❌ Interdit / ❓ Non précisé
+Explication 2-3 phrases.
 > *Page XX — Article YY :* "Passage exact."
 
 ## ② Logements sociaux
-**Obligation :** [Oui X% / Non / Non mentionné dans les articles trouvés]
+**Obligation :** [Oui X% / Non / Non mentionné]
 > *Page XX — Article YY :* "Passage exact."
 
 ## ③ Conditions et contraintes
 **[Condition]** — Ce que ça implique.
 > *Page XX — Article YY :* "Passage exact."
 
-Règles : cite toujours le texte EXACT entre guillemets avec page et article.`;
+Texte EXACT entre guillemets. Toujours indiquer page et article.`;
 
 const OPERATIONS = {
   destination: "Changement de destination — bureaux → logements, bâtiment existant",
@@ -34,7 +28,16 @@ const FALLBACK_URLS = {
   '200057867': 'https://plainecommune.fr/fileadmin/user_upload/Portail_Plaine_Commune/LA_DOC/PROJET_DE_TERRITOIRE/PLUI/PLUi_Exutoire/TOME_4-REGLEMENT_ECRIT_ET_GRAPHIQUE/TOME_4-REGLEMENT_ECRIT/4-1-2_Partie_2_Reglements_de-zones/4-1-2-1_Zones_UMD_UMT_UM_UC_UH_UA_UE_UG_UVP_N_A/200057867_4-1-2-1_Reglements_des_zones.pdf',
 };
 
-async function callOpus(apiKey, content) {
+async function extractPages(pdfDoc, from, to) {
+  const total = pdfDoc.getPageCount();
+  const end = Math.min(to, total);
+  const sub = await PDFDocument.create();
+  const pages = await sub.copyPages(pdfDoc, [...Array(end - from).keys()].map(i => i + from));
+  pages.forEach(p => sub.addPage(p));
+  return Buffer.from(await sub.save()).toString('base64');
+}
+
+async function callClaude(apiKey, content) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
@@ -57,9 +60,7 @@ export default async function handler(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Clé API non configurée' });
 
-  const prompt = BASE_PROMPT
-    .replace('{ZONE}', zone)
-    .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType);
+  const prompt = BASE_PROMPT.replace('{ZONE}', zone).replace('{OPERATION}', OPERATIONS[analysisType] || analysisType);
 
   try {
     // Récupère le PDF
@@ -87,29 +88,54 @@ export default async function handler(req, res) {
     const totalPages = pdfDoc.getPageCount();
     console.log('Pages:', totalPages);
 
-    // Extrait max 100 pages centrées sur là où la zone est probablement
-    // Pour ≤100 pages : envoie tout
-    // Pour >100 pages : envoie pages 1-100 (contient presque toujours les dispositions + zone)
-    const pagesToSend = Math.min(totalPages, 100);
-    let subPdfB64;
+    // Variables pour le scan
+    const baseZone = zone.replace(/[a-z]+$/, '').replace(/-[A-Z0-9-]+$/, '') || zone;
+    const familleZone = baseZone.replace(/[0-9]+.*$/, '');
+    const variants = [...new Set([zone, baseZone, familleZone, zone.toUpperCase(), baseZone.toUpperCase()])].filter(v => v).join('", "');
 
-    if (totalPages <= 100) {
-      subPdfB64 = Buffer.from(pdfBytes).toString('base64');
-    } else {
-      const sub = await PDFDocument.create();
-      const pages = await sub.copyPages(pdfDoc, [...Array(pagesToSend).keys()]);
-      pages.forEach(p => sub.addPage(p));
-      subPdfB64 = Buffer.from(await sub.save()).toString('base64');
-      console.log('Extrait pages 1-' + pagesToSend);
+    const extractPrompt = `Ce document est une partie d'un règlement PLU.
+Extrais INTÉGRALEMENT (mot pour mot) tout le texte concernant :
+1. Les dispositions générales applicables à toutes les zones (définitions, règles communes)
+2. La zone "${zone}" et variantes "${variants}" : cherche "ZONE ${zone}", "Zone ${baseZone}", "Article ${baseZone} 1" à "Article ${baseZone} 15", "Chapitre ${baseZone}", et toute section dont le titre contient "${zone}" ou "${baseZone}"
+Inclus : destinations autorisées/interdites, hauteur, emprise, reculs, stationnement, logements sociaux.
+Copie le texte exact avec numéros d'articles et pages.
+Si rien de pertinent : réponds "RIEN_ICI".`;
+
+    // Scan par tranches de 40 pages en parallèle (40p × ~2000 tok/p = 80K tokens, bien sous la limite)
+    const CHUNK = 40;
+    const CONCURRENCY = 5;
+    const MAX_PAGES = 2000;
+    const pagesToScan = Math.min(totalPages, MAX_PAGES);
+
+    const allChunks = [];
+    for (let from = 0; from < pagesToScan; from += CHUNK) allChunks.push(from);
+
+    const chunkResults = [];
+    for (let i = 0; i < allChunks.length; i += CONCURRENCY) {
+      const batch = allChunks.slice(i, i + CONCURRENCY);
+      const end = Math.min(batch[batch.length-1] + CHUNK, pagesToScan);
+      console.log(`Scan pages ${batch[0]+1}-${end}...`);
+
+      const results = await Promise.all(batch.map(async (from) => {
+        const b64 = await extractPages(pdfDoc, from, from + CHUNK);
+        return callClaude(apiKey, [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+          { type: 'text', text: extractPrompt }
+        ]);
+      }));
+      chunkResults.push(...results);
     }
 
-    // Un seul appel Opus : extrait la zone ET analyse
-    const result = await callOpus(apiKey, [
-      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: subPdfB64 } },
-      { type: 'text', text: prompt }
-    ]);
+    const zoneContent = chunkResults.filter(r => !r.includes('RIEN_ICI')).join('\n');
+    if (!zoneContent) return res.status(400).json({ error: `Zone "${zone}" introuvable dans le document` });
+    console.log('Contenu extrait:', zoneContent.length, 'chars');
 
-    console.log('✓ OK');
+    // Analyse finale
+    const result = await callClaude(apiKey,
+      `Articles du règlement PLU zone ${zone} :\n\n${zoneContent}\n\n---\n\n${prompt}`
+    );
+
+    console.log('✓ Analyse OK');
     return res.status(200).json({ success: true, zone, analysisType, result });
 
   } catch(err) {
