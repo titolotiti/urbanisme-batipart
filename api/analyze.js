@@ -111,13 +111,34 @@ export default async function handler(req, res) {
     const CHUNK = 50;
     // Zone de base : UDa → UD, UMD → UM, UBc → UB, etc.
     const baseZone = zone.replace(/[a-z]+$/, '').replace(/\d+$/, '') || zone;
-    const extractPrompt = `Ce document est une partie d'un règlement PLU.
-Extrait le texte de :
-1. Les dispositions générales applicables à toutes les zones (articles communs, définitions)
-2. Tous les articles de la zone "${zone}" ET de la zone de base "${baseZone}" (ex: si zone=UDa cherche aussi les articles UD 1, UD 2, etc.)
+    const variants = [...new Set([
+      zone,                                        // UDa, U2b, UGSU, U1-A-1, AUa, N1...
+      baseZone,                                    // UD, U2, UG, U1, AU, N1
+      familleZone,                                 // U, A, N, AU
+      zone.toUpperCase(),
+      baseZone.toUpperCase(),
+      zone.replace(/[^A-Za-z0-9]/g, ''),          // sans tirets ni espaces
+      baseZone.replace(/[^A-Za-z0-9]/g, ''),
+    ])].filter(v => v && v.length > 0).join('", "');
 
-Si aucun de ces éléments n'est présent, réponds exactement : "RIEN_ICI"
-Sinon, retourne le texte INTÉGRAL des articles trouvés avec leurs numéros et numéros de pages.`;
+    const extractPrompt = `Ce document est une partie d'un règlement PLU.
+Extrais INTÉGRALEMENT (mot pour mot, sans résumer) tout le texte qui concerne :
+
+1. LES DISPOSITIONS GÉNÉRALES : tout article ou section applicable à TOUTES les zones
+   (définitions, règles communes, EBC, stationnement général, etc.)
+
+2. LA ZONE CONCERNÉE : tous les articles de la zone "${zone}" et de ses variantes ("${variants}")
+   Cherche sous TOUTES ces formes possibles dans le document :
+   - "ZONE ${zone}", "Zone ${baseZone}", "CHAPITRE ${zone}", "TITRE ${baseZone}"
+   - "Article ${zone} 1" jusqu'à "Article ${zone} 15"
+   - "Article ${baseZone} 1" jusqu'à "Article ${baseZone} 15"  
+   - "Art. ${baseZone}", "${baseZone}.1", "${baseZone}.2"...
+   - Toute section dont le titre contient "${zone}" ou "${baseZone}"
+   Inclus les articles sur : destinations autorisées/interdites, hauteur, emprise au sol,
+   implantation, reculs, stationnement, espaces verts, logements sociaux, mixité.
+
+Copie le texte EXACT avec numéros d'articles et numéros de pages.
+Si ce fragment ne contient rien de tout cela : réponds uniquement "RIEN_ICI".`;
 
     let zoneContent = '';
     let zoneFound = false;
