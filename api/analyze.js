@@ -37,16 +37,20 @@ async function extractPages(pdfDoc, from, to) {
   return Buffer.from(await sub.save()).toString('base64');
 }
 
-async function callClaude(apiKey, content) {
+async function callModel(apiKey, content, model) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: 'claude-opus-4-5', max_tokens: 4000, messages: [{ role: 'user', content }] })
+    body: JSON.stringify({ model, max_tokens: 4000, messages: [{ role: 'user', content }] })
   });
   const d = await r.json();
   if (!r.ok) throw new Error(JSON.stringify(d.error));
   return d.content[0].text;
 }
+// Haiku pour l'extraction (lecture + copie de texte) — 20x moins cher
+const callHaiku = (apiKey, content) => callModel(apiKey, content, 'claude-haiku-4-5-20251001');
+// Opus pour l'analyse finale (raisonnement juridique)
+const callOpus = (apiKey, content) => callModel(apiKey, content, 'claude-sonnet-4-6');
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -118,7 +122,7 @@ Si rien de pertinent : réponds "RIEN_ICI".`;
 
       const results = await Promise.all(batch.map(async (from) => {
         const b64 = await extractPages(pdfDoc, from, from + CHUNK);
-        return callClaude(apiKey, [
+        return callHaiku(apiKey, [
           { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
           { type: 'text', text: extractPrompt }
         ]);
@@ -131,7 +135,7 @@ Si rien de pertinent : réponds "RIEN_ICI".`;
     console.log('Contenu extrait:', zoneContent.length, 'chars');
 
     // Analyse finale
-    const result = await callClaude(apiKey,
+    const result = await callOpus(apiKey,
       `Articles du règlement PLU zone ${zone} :\n\n${zoneContent}\n\n---\n\n${prompt}`
     );
 
