@@ -525,7 +525,7 @@ async function runAnalysis(type) {
   errEl.className = 'err'; resEl.className = 'res';
   spEl.className = 'spin on'; btnEl.disabled = true;
   try {
-    const r = await fetch('/api/analyze', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zone,analysisType:type,pluUrl,pluBase64})});
+    const r = await fetch('/api/analyze', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zone,analysisType:type,pluUrl,pluBase64,commune:currentCity,address:currentAddress})});
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);
     results[type] = d.result;
