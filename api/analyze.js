@@ -107,12 +107,15 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, zone, analysisType, result });
     }
 
-    // Si > 100 pages → scan par tranches de 100, cherche la zone
+    // Si > 100 pages → scan TOUTES les tranches, collecte tout le contenu pertinent
     const CHUNK = 50;
-    const extractPrompt = `Ce document est une partie d'un règlement PLU. 
-Extrait UNIQUEMENT le texte des articles concernant la zone "${zone}" (y compris les dispositions générales si présentes).
-Si la zone "${zone}" n'est pas dans ce fragment, réponds exactement : "ZONE_NOT_FOUND"
-Sinon, retourne le texte complet des articles trouvés avec numéros de pages.`;
+    const extractPrompt = `Ce document est une partie d'un règlement PLU.
+Extrait le texte de :
+1. Les dispositions générales applicables à toutes les zones (si présentes dans ce fragment)
+2. Tous les articles concernant spécifiquement la zone "${zone}"
+
+Si aucun de ces éléments n'est présent, réponds exactement : "RIEN_ICI"
+Sinon, retourne le texte intégral des passages trouvés avec numéros de pages et articles.`;
 
     let zoneContent = '';
     for (let from = 0; from < totalPages; from += CHUNK) {
@@ -121,17 +124,9 @@ Sinon, retourne le texte complet des articles trouvés avec numéros de pages.`;
       console.log(`Scan pages ${from+1}-${end}...`);
 
       const extract = await callClaude(apiKey, chunkB64, extractPrompt);
-      if (!extract.includes('ZONE_NOT_FOUND')) {
-        zoneContent += extract;
-        console.log(`Zone ${zone} trouvée pages ${from+1}-${end}`);
-        // Continue sur la tranche suivante pour capturer la fin de la zone
-        if (from + CHUNK < totalPages) {
-          const { bytes: bytes2 } = await extractPages(pdfBytes, from + CHUNK, from + CHUNK + 50);
-          const b2 = Buffer.from(bytes2).toString('base64');
-          const ext2 = await callClaude(apiKey, b2, extractPrompt);
-          if (!ext2.includes('ZONE_NOT_FOUND')) zoneContent += '\n' + ext2;
-        }
-        break;
+      if (!extract.includes('RIEN_ICI')) {
+        zoneContent += '\n' + extract;
+        console.log(`Contenu trouvé pages ${from+1}-${end} (${extract.length} chars)`);
       }
     }
 
