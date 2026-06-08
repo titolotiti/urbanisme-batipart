@@ -107,7 +107,7 @@ Si rien de pertinent : réponds "RIEN_ICI".`;
 
     // Scan par tranches de 40 pages en parallèle (40p × ~2000 tok/p = 80K tokens, bien sous la limite)
     const CHUNK = 40;
-    const CONCURRENCY = 5;
+    const CONCURRENCY = 2;
     const MAX_PAGES = 2000;
     const pagesToScan = Math.min(totalPages, MAX_PAGES);
 
@@ -120,6 +120,7 @@ Si rien de pertinent : réponds "RIEN_ICI".`;
       const end = Math.min(batch[batch.length-1] + CHUNK, pagesToScan);
       console.log(`Scan pages ${batch[0]+1}-${end}...`);
 
+      if (i > 0) await new Promise(r => setTimeout(r, 1000)); // pause entre batches
       const results = await Promise.all(batch.map(async (from) => {
         const b64 = await extractPages(pdfDoc, from, from + CHUNK);
         return callHaiku(apiKey, [
