@@ -110,7 +110,8 @@ export default async function handler(req, res) {
     // Si > 100 pages → scan TOUTES les tranches, collecte tout le contenu pertinent
     const CHUNK = 50;
     // Zone de base : UDa → UD, UMD → UM, UBc → UB, etc.
-    const baseZone = zone.replace(/[a-z]+$/, '').replace(/\d+$/, '') || zone;
+    const baseZone = zone.replace(/[a-z]+$/, '').replace(/-[A-Z0-9-]+$/, '') || zone;
+    const familleZone = baseZone.replace(/[0-9]+.*$/, '');
     const variants = [...new Set([
       zone,                                        // UDa, U2b, UGSU, U1-A-1, AUa, N1...
       baseZone,                                    // UD, U2, UG, U1, AU, N1
