@@ -4,7 +4,7 @@ const BASE_PROMPT = `Tu es un expert en droit de l'urbanisme français.
 Tu vas recevoir un extrait d'un règlement PLU. 
 
 ÉTAPE 1 — Trouve et extrais tous les articles concernant :
-- La zone "${ZONE}" et ses variantes (ex: si zone=UDa, cherche aussi UD, UD 1, UD 2... ; si zone=UBc, cherche aussi UB ; si zone=UMD, cherche aussi UM)
+- La zone "{ZONE}" et ses variantes (ex: si zone=UDa, cherche aussi UD, UD 1, UD 2... ; si zone=UBc, cherche aussi UB ; si zone=UMD, cherche aussi UM)
 - Les dispositions générales applicables à toutes les zones
 
 ÉTAPE 2 — Avec ces articles, analyse pour l'opération : {OPERATION}
@@ -58,7 +58,7 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'Clé API non configurée' });
 
   const prompt = BASE_PROMPT
-    .replace(/\$\{ZONE\}/g, zone)
+    .replace('{ZONE}', zone)
     .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType);
 
   try {
