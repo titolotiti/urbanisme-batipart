@@ -1,3 +1,4 @@
+// v2 — Haiku extraction + Sonnet analysis + commune context
 import { PDFDocument } from 'pdf-lib';
 
 const BASE_PROMPT = `Tu es un expert en droit de l'urbanisme français.
