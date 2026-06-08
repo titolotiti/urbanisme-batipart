@@ -109,13 +109,15 @@ export default async function handler(req, res) {
 
     // Si > 100 pages → scan TOUTES les tranches, collecte tout le contenu pertinent
     const CHUNK = 50;
+    // Zone de base : UDa → UD, UMD → UM, UBc → UB, etc.
+    const baseZone = zone.replace(/[a-z]+$/, '').replace(/\d+$/, '') || zone;
     const extractPrompt = `Ce document est une partie d'un règlement PLU.
 Extrait le texte de :
-1. Les dispositions générales applicables à toutes les zones (si présentes dans ce fragment)
-2. Tous les articles concernant spécifiquement la zone "${zone}"
+1. Les dispositions générales applicables à toutes les zones (articles communs, définitions)
+2. Tous les articles de la zone "${zone}" ET de la zone de base "${baseZone}" (ex: si zone=UDa cherche aussi les articles UD 1, UD 2, etc.)
 
 Si aucun de ces éléments n'est présent, réponds exactement : "RIEN_ICI"
-Sinon, retourne le texte intégral des passages trouvés avec numéros de pages et articles.`;
+Sinon, retourne le texte INTÉGRAL des articles trouvés avec leurs numéros et numéros de pages.`;
 
     let zoneContent = '';
     for (let from = 0; from < totalPages; from += CHUNK) {
