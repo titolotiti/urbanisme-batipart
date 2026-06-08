@@ -1,7 +1,8 @@
 import { PDFDocument } from 'pdf-lib';
 
 const BASE_PROMPT = `Tu es un expert en droit de l'urbanisme français.
-Analyse le règlement PLU (zone {ZONE}) pour l'opération : {OPERATION}
+Analyse le règlement PLU (zone {ZONE}) pour l'opération : {OPERATION}{COMMUNE}
+IMPORTANT : Si ce règlement couvre plusieurs communes, applique UNIQUEMENT les règles de la commune indiquée ci-dessus.
 
 ## ① Faisabilité
 **Verdict :** ✅ Possible / ⚠️ Sous conditions / ❌ Interdit / ❓ Non précisé
@@ -59,12 +60,16 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { zone, analysisType, pluUrl, pluBase64 } = req.body;
+  const { zone, analysisType, pluUrl, pluBase64, commune, address } = req.body;
   if (!zone || !analysisType || (!pluUrl && !pluBase64)) return res.status(400).json({ error: 'Paramètres manquants' });
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Clé API non configurée' });
 
-  const prompt = BASE_PROMPT.replace('{ZONE}', zone).replace('{OPERATION}', OPERATIONS[analysisType] || analysisType);
+  const communeInfo = commune ? `\nCommune : ${commune}${address ? ' — Adresse : ' + address : ''}` : '';
+  const prompt = BASE_PROMPT
+    .replace('{ZONE}', zone)
+    .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType)
+    .replace('{COMMUNE}', communeInfo);
 
   try {
     // Récupère le PDF
@@ -136,8 +141,9 @@ Si rien de pertinent : réponds "RIEN_ICI".`;
     console.log('Contenu extrait:', zoneContent.length, 'chars');
 
     // Analyse finale
+    const contextInfo = commune ? `Commune : ${commune}${address ? ', adresse : ' + address : ''}\nZone : ${zone}\n\n` : `Zone : ${zone}\n\n`;
     const result = await callOpus(apiKey,
-      `Articles du règlement PLU zone ${zone} :\n\n${zoneContent}\n\n---\n\n${prompt}`
+      contextInfo + `Articles extraits du règlement PLU :\n\n${zoneContent}\n\n---\n\n${prompt}`
     );
 
     console.log('✓ Analyse OK');
