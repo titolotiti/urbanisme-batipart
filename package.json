@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "type": "module",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.24.0",
-    "pdfjs-dist": "^4.0.0"
+    "pdf-lib": "^1.17.1"
   }
 }
