@@ -23,6 +23,10 @@ Explication 2-3 phrases.
 
 Texte EXACT entre guillemets. Toujours indiquer page et article.
 
+IMPORTANT : Ne commence pas par un avertissement préalable. Lance-toi directement dans l'analyse.
+À la toute fin seulement, ajoute cette ligne unique :
+> 📋 *Analyse basée sur le règlement écrit — suffisant pour évaluer la faisabilité. Pour un dépôt de permis, faire vérifier les plans graphiques par un architecte.*
+
 À la toute fin, ajoute une seule ligne :
 > 📋 *Note : cette analyse porte sur le règlement écrit. Les plans graphiques (surcharges, emplacements réservés, protections) doivent être vérifiés séparément.*`;
 
