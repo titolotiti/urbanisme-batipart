@@ -107,8 +107,11 @@ export default async function handler(req, res) {
     // Haiku cherche la page exacte de la zone ET extrait les dispositions générales
     const toc20 = await getPagesBatch(pdfDoc, 0, 20);
     const tocPrompt = `Ce document est un règlement PLU de ${totalPages} pages.
-1. Trouve la PAGE exacte où commence la zone "${zone}" (ou "${baseZone}") dans ce document. Réponds avec juste le numéro : "PAGE: XX"
-2. Extrait intégralement les dispositions générales et définitions applicables à toutes les zones (si présentes ici).`;
+TÂCHE 1 — Cherche dans la table des matières ou le sommaire la page où commence la zone "${zone}" ou "${baseZone}" ou "ZONE ${baseZone}". 
+Réponds obligatoirement avec : "PAGE: XX" (ex: "PAGE: 145")
+Si tu ne trouves pas de table des matières, cherche dans le texte visible et indique "PAGE: non trouvée".
+
+TÂCHE 2 — Extrait intégralement les dispositions générales, définitions et règles communes à toutes les zones (si présentes dans ces 20 premières pages).`;
 
     const tocResult = await callHaiku(apiKey, [
       { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: toc20 } },
@@ -125,7 +128,7 @@ export default async function handler(req, res) {
     if (zoneStartPage !== null && zoneStartPage > 20) {
       // ── APPEL 2 : Pages de la zone (±40 pages autour de la zone) ──
       const from = Math.max(0, zoneStartPage - 2);
-      const to = Math.min(totalPages, zoneStartPage + 40);
+      const to = Math.min(totalPages, zoneStartPage + 80);
       console.log(`Zone trouvée page ${zoneStartPage + 1}, scan pages ${from+1}-${to}`);
 
       const zoneB64 = await getPagesBatch(pdfDoc, from, to);
@@ -143,8 +146,8 @@ Copie le texte exact avec numéros d'articles et pages.`;
       console.log('Zone dans les 20 premières pages');
     } else {
       // Page non trouvée — scan pages 1-60 en fallback
-      console.log('Page non trouvée dans TOC, scan pages 1-60');
-      const fallbackB64 = await getPagesBatch(pdfDoc, 0, 60);
+      console.log('Page non trouvée dans TOC, scan pages 1-100');
+      const fallbackB64 = await getPagesBatch(pdfDoc, 0, 100);
       const ext = await callHaiku(apiKey, [
         { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: fallbackB64 } },
         { type: 'text', text: `Extrait tous les articles de la zone "${zone}" ou "${baseZone}" et les dispositions générales. Copie le texte exact.` }
