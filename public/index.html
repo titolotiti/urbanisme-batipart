@@ -4,158 +4,160 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Analyseur PLU — Batipart</title>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#f7f6f3;--surface:#fff;--surface2:#faf9f7;
-  --ink:#1a1a1a;--ink2:#555;--ink3:#999;
-  --blue:#2C4A6E;--blue-light:#e8eef5;
-  --border:#e8e6e0;
-  --green-bg:#ecfdf5;--green-txt:#065f46;
-  --red-bg:#fef2f2;--red-txt:#991b1b;
-  --amber-bg:#fffbeb;--amber-txt:#92400e;
-  --r:14px;--r-sm:9px;
-  --shadow:0 2px 20px rgba(0,0,0,.06);
+  --blue:#2C4A6E;--blue-h:#1e3550;--blue-l:#eaf0f7;
+  --bg:#f5f6f8;--s:#fff;--s2:#f8f9fa;
+  --ink:#0d1117;--ink2:#4a5568;--ink3:#9aa5b4;
+  --bdr:#e2e8f0;--r:16px;--rsm:11px;
+  --green-bg:#ecfdf5;--green-t:#065f46;
+  --red:#dc2626;--red-l:#fef2f2;--red-t:#991b1b;
+  --amber-bg:#fffbeb;--amber-t:#92400e;
 }
-body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-weight:300;min-height:100vh}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-weight:300}
 
-/* overlay */
+/* ── ANIMATIONS ── */
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes popIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+
+/* ── OVERLAY + DRAWER ── */
 #overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(3px);z-index:40;opacity:0;pointer-events:none;transition:opacity .3s}
 #overlay.on{opacity:1;pointer-events:all}
-
-/* drawer */
-#drawer{position:fixed;top:0;left:0;bottom:0;width:256px;background:var(--surface);border-right:1px solid var(--border);z-index:50;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);overflow-y:auto;display:flex;flex-direction:column;box-shadow:4px 0 24px rgba(0,0,0,.08)}
+#drawer{position:fixed;top:0;left:0;bottom:0;width:260px;background:var(--s);border-right:1px solid var(--bdr);z-index:50;transform:translateX(-100%);transition:transform .35s cubic-bezier(.4,0,.2,1);overflow-y:auto;display:flex;flex-direction:column;box-shadow:4px 0 32px rgba(0,0,0,.08)}
 #drawer.on{transform:translateX(0)}
-.d-brand{padding:24px 20px 18px;border-bottom:1px solid var(--surface2)}
-.d-logo{background:#fff;border-radius:7px;padding:7px 11px;display:inline-block}
-.d-logo img{width:108px;height:auto;display:block}
-.d-sub{font-size:11px;color:var(--ink3);margin-top:9px;letter-spacing:.04em}
-.d-section{padding:18px 12px 4px}
-.d-label{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.1em;color:var(--ink3);padding:0 8px;margin-bottom:7px}
-.d-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;transition:background .15s;margin-bottom:2px}
-.d-item:hover:not(.soon){background:var(--surface2)}
-.d-item.active{background:rgba(44,74,110,.3)}
-.d-item.active .d-label2{color:#93c5fd}
+.d-brand{padding:26px 20px 18px;border-bottom:1px solid var(--bdr)}
+.d-logo img{width:110px;height:auto;display:block}
+.d-sub{font-size:11px;color:var(--ink3);margin-top:8px;letter-spacing:.04em}
+.d-section{padding:16px 12px 4px}
+.d-lbl{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.1em;color:var(--ink3);padding:0 8px;margin-bottom:6px}
+.d-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;cursor:pointer;transition:background .15s;margin-bottom:2px}
+.d-item:hover:not(.soon){background:var(--s2)}
+.d-item.active{background:var(--blue-l)}
+.d-item.active .d-l2{color:var(--blue)}
 .d-item.soon{opacity:.35;cursor:default}
-.d-icon{width:28px;height:28px;background:var(--surface2);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--ink3)}
-.d-label2{font-size:13px;color:var(--ink2)}
-.d-badge{margin-left:auto;background:var(--surface2);color:var(--ink3);font-size:10px;padding:2px 7px;border-radius:99px}
+.d-ic{width:28px;height:28px;background:var(--s2);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--ink3)}
+.d-l2{font-size:13px;color:var(--ink2)}
+.d-badge{margin-left:auto;background:var(--s2);color:var(--ink3);font-size:10px;padding:2px 7px;border-radius:99px}
+.hist-item{padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:3px;transition:background .15s,transform .15s}
+.hist-item:hover{background:var(--s2);transform:translateX(3px)}
+.hist-date{font-size:10px;color:var(--ink3)}
+.hist-addr{font-size:12px;color:var(--ink2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-zone{font-size:11px;color:var(--ink3);margin-top:1px}
 
-/* topbar */
-.topbar{position:sticky;top:0;z-index:30;background:rgba(247,246,243,.93);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);height:54px;display:flex;align-items:center;padding:0 22px;gap:14px}
-.menu-btn{width:36px;height:36px;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border-radius:8px;transition:background .15s}
-.menu-btn:hover{background:var(--border)}
-.menu-btn span{display:block;width:18px;height:1.5px;background:var(--ink);border-radius:2px}
-.topbar-title{font-size:15px;font-weight:600;color:var(--ink)}
+/* ── TOPBAR ── */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:30;background:rgba(255,255,255,.88);backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid rgba(226,232,240,.8);height:56px;display:flex;align-items:center;padding:0 20px;gap:12px}
+.menu-btn{width:36px;height:36px;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border-radius:9px;transition:background .15s;flex-shrink:0}
+.menu-btn:hover{background:var(--bdr)}
+.menu-btn span{display:block;width:17px;height:1.5px;background:var(--ink);border-radius:2px}
+.back-btn{width:36px;height:36px;background:none;border:1.5px solid var(--bdr);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:99px;transition:all .2s;flex-shrink:0;opacity:0;pointer-events:none;transform:scale(.8)}
+.back-btn.on{opacity:1;pointer-events:all;transform:scale(1)}
+.back-btn:hover{background:var(--s2);border-color:var(--blue)}
+.back-btn svg{transition:transform .2s}
+.back-btn:hover svg{transform:translateX(-2px)}
+.topbar-title{font-size:14.5px;font-weight:600;color:var(--ink);flex:1}
+.step-dots{display:flex;gap:6px;align-items:center}
+.dot-s{width:6px;height:6px;border-radius:99px;background:var(--bdr);transition:all .35s cubic-bezier(.4,0,.2,1)}
+.dot-s.on{width:20px;background:var(--blue)}
 
-/* page */
-.page{max-width:1100px;margin:0 auto;padding:32px 32px 80px}
+/* ── STEPS CONTAINER ── */
+.steps-wrap{position:fixed;top:56px;left:0;right:0;bottom:0;perspective:1200px;perspective-origin:50% 40%}
+.step{position:absolute;inset:0;overflow-y:auto;transition:transform .5s cubic-bezier(.4,0,.2,1),opacity .5s cubic-bezier(.4,0,.2,1);transform-style:preserve-3d;will-change:transform,opacity}
+.step.active{transform:translateZ(0) scale(1);opacity:1;pointer-events:all;z-index:2}
+.step.behind{transform:translateZ(-100px) scale(0.92);opacity:0;pointer-events:none;z-index:1}
+.step.front{transform:translateZ(80px) scale(1.04);opacity:0;pointer-events:none;z-index:3}
 
-/* card */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden}
-.card-hd{padding:18px 22px 0;display:flex;align-items:center;gap:10px}
-.card-num{width:22px;height:22px;background:var(--blue);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;flex-shrink:0}
-.card-hd h2{font-size:14px;font-weight:600;color:var(--ink)}
-.card-bd{padding:20px 24px 28px}
-
-/* field */
-.field{margin-bottom:18px}
-.field:last-child{margin-bottom:0}
-label{display:block;font-size:11.5px;font-weight:500;color:var(--ink2);margin-bottom:6px}
-input[type=text]{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--r-sm);padding:13px 16px;font-family:'Geist',sans-serif;font-size:13.5px;color:var(--ink);outline:none;transition:border-color .18s,box-shadow .18s}
-input[type=text]:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(44,74,110,.1)}
-input[type=text]::placeholder{color:var(--ink3)}
-
-/* btn-find */
+/* ── STEP 1 — Adresse ── */
+.s1-inner{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px 48px;max-width:560px;margin:0 auto}
+.s1-eyebrow{font-size:11.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);margin-bottom:16px;animation:fadeUp .5s .1s both}
+.s1-title{font-size:32px;font-weight:700;color:var(--ink);text-align:center;line-height:1.2;margin-bottom:10px;letter-spacing:-.03em;animation:fadeUp .5s .15s both}
+.s1-sub{font-size:15px;color:var(--ink3);text-align:center;margin-bottom:40px;line-height:1.6;animation:fadeUp .5s .2s both}
+.s1-card{background:var(--s);border:1px solid var(--bdr);border-radius:20px;padding:28px;width:100%;box-shadow:0 4px 32px rgba(0,0,0,.06);animation:fadeUp .5s .25s both}
+.s1-field{margin-bottom:18px}
+.s1-field label{display:block;font-size:11.5px;font-weight:500;color:var(--ink2);margin-bottom:7px;letter-spacing:.02em}
 .addr-row{display:flex;gap:8px}
-.btn-find{flex-shrink:0;background:var(--blue);color:#fff;border:none;border-radius:var(--r-sm);padding:13px 18px;font-family:'Geist',sans-serif;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;transition:opacity .18s}
-.btn-find:hover{opacity:.85}
-.btn-find:disabled{opacity:.45;cursor:not-allowed}
-
-/* geo box */
-.geo-box{display:none;margin-top:10px;border-radius:var(--r-sm);padding:13px 16px;font-size:13.5px;line-height:1.7}
-.geo-ok{background:var(--green-bg);border:1px solid #a7f3d0;color:var(--green-txt)}
-.geo-err{background:var(--red-bg);border:1px solid #fecaca;color:var(--red-txt)}
-.geo-load{background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8}
-.plu-ok{display:none;margin-top:10px;background:var(--green-bg);border:1px solid #a7f3d0;border-radius:var(--r-sm);padding:13px 16px;font-size:13px;color:var(--green-txt);line-height:1.7}
-
-/* section sep */
-.section-sep{display:flex;align-items:center;gap:10px;margin:18px 0 14px}
-.section-sep div{flex:1;height:1px;background:var(--border)}
-.section-sep span{font-size:11.5px;font-weight:500;color:var(--ink3);white-space:nowrap;background:var(--surface);padding:0 10px}
-
-/* input volets */
-.iv{border:1.5px solid var(--border);border-radius:var(--r);overflow:hidden;transition:border-color .2s;margin-bottom:10px}
-.iv.on{border-color:var(--blue)}
-.iv-hd{display:flex;align-items:center;gap:12px;padding:16px 20px;cursor:pointer;user-select:none;transition:background .15s}
-.iv-hd:hover{background:var(--surface2)}
-.iv.on .iv-hd{background:var(--blue-light)}
-.iv-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--ink3);transition:background .2s}
-.iv.on .iv-dot{background:var(--blue)}
-.iv-info{flex:1}
-.iv-title{font-size:14px;font-weight:600;color:var(--ink)}
-.iv-sub{font-size:12px;color:var(--ink3);margin-top:3px}
-.iv-arrow{font-size:18px;color:var(--ink3);transition:transform .25s;line-height:1}
-.iv.on .iv-arrow{transform:rotate(90deg);color:var(--blue)}
-.iv-bd{padding:4px 16px 16px;border-top:1.5px solid var(--blue-light);display:none}
-.iv.on .iv-bd{display:block}
-
-/* drop zone */
-.drop{position:relative;border:1.5px dashed var(--border);border-radius:var(--r-sm);padding:24px 16px;text-align:center;cursor:pointer;background:var(--surface2);transition:all .2s;margin-top:6px}
-.drop:hover,.drop.over{border-color:var(--blue);background:var(--blue-light)}
+.inp{flex:1;background:var(--s2);border:1.5px solid var(--bdr);border-radius:var(--rsm);padding:13px 16px;font-family:'Geist',sans-serif;font-size:14px;color:var(--ink);outline:none;transition:all .2s}
+.inp:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(44,74,110,.08);background:var(--s)}
+.inp::placeholder{color:var(--ink3)}
+.inp-zone{font-size:16px;font-weight:600;letter-spacing:.04em}
+.btn-find{flex-shrink:0;background:var(--blue);color:#fff;border:none;border-radius:var(--rsm);padding:13px 20px;font-family:'Geist',sans-serif;font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:7px;box-shadow:0 2px 12px rgba(44,74,110,.3);transition:all .18s}
+.btn-find:hover{background:var(--blue-h);box-shadow:0 4px 20px rgba(44,74,110,.4);transform:translateY(-1px)}
+.btn-find:active{transform:scale(.97)}
+.btn-find:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+.geo-box{display:none;border-radius:var(--rsm);padding:13px 16px;font-size:13px;line-height:1.7;margin-top:4px}
+.geo-ok{background:var(--green-bg);border:1px solid #a7f3d0;color:var(--green-t);display:block;animation:popIn .3s ease}
+.geo-warn{background:var(--amber-bg);border:1px solid #fcd34d;color:var(--amber-t);display:block}
+.geo-err{background:var(--red-l);border:1px solid #fecaca;color:var(--red-t);display:block}
+.geo-load{background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;display:block}
+.plu-row{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+.plu-name{font-size:12px;color:var(--ink2);display:flex;align-items:center;gap:6px}
+.plu-link{font-size:11.5px;color:var(--blue);text-decoration:none;display:flex;align-items:center;gap:3px}
+.plu-link:hover{text-decoration:underline}
+.warn-age{background:#fdf8f0;border:1px solid #e8d5b0;border-radius:var(--rsm);padding:9px 13px;font-size:12px;color:#8a6a2a;margin-top:8px;display:none}
+.s1-divider{display:flex;align-items:center;gap:12px;margin:18px 0}
+.s1-divider div{flex:1;height:1px;background:var(--bdr)}
+.s1-divider span{font-size:11.5px;color:var(--ink3)}
+.drop{position:relative;border:1.5px dashed var(--bdr);border-radius:var(--rsm);padding:20px;text-align:center;cursor:pointer;background:var(--s2);transition:all .2s}
+.drop:hover,.drop.over{border-color:var(--blue);background:var(--blue-l)}
 .drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-.drop-lbl{font-size:13px;color:var(--ink2);margin-top:6px}
+.drop-lbl{font-size:13px;color:var(--ink2);margin-top:4px}
 .drop-sub{font-size:11.5px;color:var(--ink3);margin-top:2px}
-.file-tag{display:none;align-items:center;gap:6px;background:var(--green-bg);border-radius:6px;padding:5px 12px;font-size:12px;font-weight:500;color:var(--green-txt);width:fit-content;margin:8px auto 0}
-.btn-replace{display:flex;align-items:center;gap:6px;background:none;border:1.5px solid var(--border);border-radius:7px;padding:7px 13px;font-family:'Geist',sans-serif;font-size:12px;color:var(--ink3);cursor:pointer;transition:all .15s;margin-top:10px}
-.btn-replace:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-light)}
-.warn-box{background:#fdf8f0;border:1px solid #e8d5b0;border-radius:var(--r-sm);padding:11px 14px;font-size:12.5px;color:#8a6a2a;margin-bottom:10px}
+.file-tag{display:none;align-items:center;gap:6px;background:var(--green-bg);border-radius:6px;padding:4px 11px;font-size:12px;font-weight:500;color:var(--green-t);width:fit-content;margin:6px auto 0}
+.btn-continue{width:100%;background:var(--blue);color:#fff;border:none;border-radius:var(--rsm);padding:15px;font-family:'Geist',sans-serif;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 12px rgba(44,74,110,.3);transition:all .18s;margin-top:8px}
+.btn-continue:hover{background:var(--blue-h);box-shadow:0 4px 20px rgba(44,74,110,.4);transform:translateY(-1px)}
+.btn-continue:active{transform:scale(.98)}
+.btn-continue:disabled{background:var(--bdr);color:var(--ink3);cursor:not-allowed;box-shadow:none;transform:none}
 
-/* analysis volets */
-.av{border:1.5px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:10px;transition:border-color .2s}
-.av.on{border-color:var(--blue)}
-.av-hd{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;user-select:none;background:var(--surface2);transition:background .15s}
-.av-hd:hover{background:var(--blue-light)}
-.av.on .av-hd{background:var(--blue-light)}
-.av-icon{width:32px;height:32px;border:1.5px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--ink3);transition:all .2s}
-.av.on .av-icon{border-color:var(--blue);color:var(--blue);background:#fff}
-.av-info{flex:1}
-.av-title{font-size:13.5px;font-weight:600;color:var(--ink)}
-.av-sub{font-size:11.5px;color:var(--ink3);margin-top:2px}
-.av-arrow{font-size:18px;color:var(--ink3);transition:transform .25s}
-.av.on .av-arrow{transform:rotate(90deg);color:var(--blue)}
-.av-bd{padding:14px;border-top:1.5px solid var(--blue-light);display:none}
-.av.on .av-bd{display:block}
-
-/* btn go */
-.btn-go{width:100%;background:var(--blue);color:#fff;border:none;border-radius:var(--r-sm);padding:12px;font-family:'Geist',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .18s}
-.btn-go:hover:not(:disabled){opacity:.85}
-.btn-go:disabled{background:var(--border);color:var(--ink3);cursor:not-allowed}
-
-/* err spin res */
-.err{display:none;background:var(--red-bg);border:1px solid #fecaca;border-radius:var(--r-sm);padding:12px 16px;font-size:13px;color:var(--red-txt);margin-top:12px}
+/* ── STEP 2 — Analyse ── */
+.s2-inner{max-width:660px;margin:0 auto;padding:24px 20px 80px}
+.s2-hero{background:linear-gradient(135deg,var(--blue) 0%,#3d6494 100%);border-radius:20px;padding:24px 28px;margin-bottom:20px;animation:fadeUp .4s ease}
+.s2-hero-label{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-bottom:6px}
+.s2-hero-addr{font-size:14px;color:rgba(255,255,255,.85);line-height:1.5}
+.s2-hero-zone{font-size:36px;font-weight:700;color:#fff;letter-spacing:-.03em;margin-top:4px}
+.s2-hero-plu{font-size:11.5px;color:rgba(255,255,255,.5);margin-top:6px;display:flex;align-items:center;gap:8px}
+.s2-hero-plu a{color:rgba(255,255,255,.7);text-decoration:none}
+.s2-hero-plu a:hover{color:#fff}
+.s2-section-title{font-size:11.5px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin:0 0 12px;padding:0 4px}
+.acard{background:var(--s);border:1.5px solid var(--bdr);border-radius:var(--r);overflow:hidden;margin-bottom:12px;transition:border-color .2s,box-shadow .2s;animation:fadeUp .4s ease both}
+.acard:nth-child(1){animation-delay:.05s}
+.acard:nth-child(2){animation-delay:.1s}
+.acard:nth-child(3){animation-delay:.15s}
+.acard.on{border-color:var(--blue);box-shadow:0 4px 24px rgba(44,74,110,.1)}
+.acard-hd{display:flex;align-items:center;gap:14px;padding:16px 20px;cursor:pointer;transition:background .15s;user-select:none}
+.acard-hd:hover{background:var(--s2)}
+.acard.on .acard-hd{background:var(--blue-l)}
+.acard-ic{width:36px;height:36px;border:1.5px solid var(--bdr);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--ink3);transition:all .2s}
+.acard.on .acard-ic{border-color:var(--blue);color:var(--blue);background:#fff}
+.acard-info{flex:1}
+.acard-title{font-size:14px;font-weight:600;color:var(--ink)}
+.acard-sub{font-size:12px;color:var(--ink3);margin-top:2px}
+.acard-arrow{color:var(--ink3);transition:transform .3s cubic-bezier(.4,0,.2,1);font-size:20px;line-height:1}
+.acard.on .acard-arrow{transform:rotate(90deg);color:var(--blue)}
+.acard-bd{padding:0 20px 18px;border-top:1.5px solid var(--blue-l);animation:fadeUp .25s ease}
+.btn-go{width:100%;background:var(--blue);color:#fff;border:none;border-radius:var(--rsm);padding:13px;font-family:'Geist',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .18s;box-shadow:0 2px 10px rgba(44,74,110,.25);margin-top:4px}
+.btn-go:hover:not(:disabled){background:var(--blue-h);box-shadow:0 4px 20px rgba(44,74,110,.4);transform:translateY(-1px)}
+.btn-go:active:not(:disabled){transform:scale(.98)}
+.btn-go:disabled{background:#e2e8f0;color:var(--ink3);cursor:not-allowed;box-shadow:none}
+.err{display:none;background:var(--red-l);border:1px solid #fecaca;border-radius:var(--rsm);padding:11px 14px;font-size:13px;color:var(--red-t);margin-top:10px}
 .err.on{display:block}
-.spin{display:none;text-align:center;padding:24px 0;margin-top:12px}
+.spin{display:none;padding:16px 0 4px}
 .spin.on{display:block}
-.dots{display:flex;gap:7px;justify-content:center;margin-bottom:10px}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--blue);animation:bop 1.2s infinite ease-in-out}
-.dot:nth-child(2){animation-delay:.2s;opacity:.7}
-.dot:nth-child(3){animation-delay:.4s;opacity:.4}
-@keyframes bop{0%,80%,100%{transform:scale(.6)}40%{transform:scale(1)}}
-.spin p{font-size:13px;color:var(--ink2)}
-.spin small{font-size:11.5px;color:var(--ink3);margin-top:3px;display:block}
-.progress-bar{width:100%;height:6px;background:var(--border);border-radius:3px;margin:10px 0}
-.progress-fill{height:100%;background:var(--blue);border-radius:3px;transition:width .5s ease}
-.btn-cancel{background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:500;cursor:pointer;margin-top:8px}
-.btn-cancel:hover{background:#b91c1c}
-.btn-dl{display:flex;align-items:center;gap:6px;padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-weight:500;color:var(--ink2);cursor:pointer;transition:all .15s}
-.btn-dl:hover{background:var(--blue-light);color:var(--blue);border-color:var(--blue)}
-.res{display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-top:14px;box-shadow:var(--shadow)}
-.res.on{display:block}
-.res-top{background:var(--blue);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-.res-top h3{font-size:14px;font-weight:600;color:#fff}
-.ztag{background:rgba(255,255,255,.2);color:#fff;font-size:11.5px;font-weight:500;padding:3px 11px;border-radius:99px}
+.progress-bar{width:100%;height:5px;background:var(--bdr);border-radius:99px;overflow:hidden;margin:10px 0}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--blue) 0%,#4a7eb5 50%,var(--blue) 100%);background-size:200%;border-radius:99px;transition:width .6s cubic-bezier(.4,0,.2,1);animation:shimmer 2s linear infinite}
+.spin p{font-size:13px;color:var(--ink2);text-align:center}
+.spin small{font-size:11.5px;color:var(--ink3);display:block;text-align:center;margin-top:3px}
+.btn-cancel{width:100%;background:var(--red);color:#fff;border:none;border-radius:var(--rsm);padding:12px;font-family:'Geist',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;box-shadow:0 2px 10px rgba(220,38,38,.25);margin-top:8px}
+.btn-cancel:hover{background:#b91c1c;box-shadow:0 4px 16px rgba(220,38,38,.35)}
+.btn-cancel:active{transform:scale(.98)}
+.res{display:none;background:var(--s);border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden;margin-top:14px}
+.res.on{display:block;animation:popIn .35s cubic-bezier(.4,0,.2,1)}
+.res-top{background:linear-gradient(135deg,var(--blue) 0%,#3d6494 100%);padding:14px 18px;display:flex;align-items:center;justify-content:space-between}
+.res-top h3{font-size:13.5px;font-weight:600;color:#fff;letter-spacing:-.01em}
+.ztag{background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:500;padding:3px 11px;border-radius:99px}
 .res-body{padding:18px 20px}
 .res-body h2{font-size:14px;font-weight:600;color:var(--ink);margin:18px 0 7px;display:flex;align-items:center;gap:7px}
 .res-body h2:first-child{margin-top:0}
@@ -164,264 +166,222 @@ input[type=text]::placeholder{color:var(--ink3)}
 .res-body p{font-size:13.5px;line-height:1.8;color:var(--ink2);margin-bottom:7px}
 .res-body ul{padding-left:16px;margin-bottom:7px}
 .res-body li{font-size:13.5px;line-height:1.75;color:var(--ink2);margin-bottom:3px}
-.res-body blockquote{background:var(--surface2);border-left:3px solid var(--blue);padding:8px 13px;margin:9px 0;font-size:12px;line-height:1.7;color:#334155;border-radius:0 5px 5px 0}
+.res-body blockquote{background:var(--s2);border-left:3px solid var(--blue);padding:8px 13px;margin:9px 0;font-size:12px;line-height:1.7;color:#334155;border-radius:0 5px 5px 0}
 .res-body strong{font-weight:500;color:var(--ink)}
 .res-body table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px}
-.res-body th{background:var(--surface2);padding:7px 10px;text-align:left;font-weight:600;border:1px solid var(--border)}
-.res-body td{padding:7px 10px;border:1px solid var(--border);line-height:1.5}
-.res-body tr:nth-child(even) td{background:var(--surface2)}
-.res-body hr{border:none;border-top:1px solid var(--border);margin:14px 0}
-.v-ok{display:inline-block;background:var(--green-bg);color:var(--green-txt);border-radius:6px;padding:2px 9px;font-weight:500;font-size:13px}
-.v-warn{display:inline-block;background:var(--amber-bg);color:var(--amber-txt);border-radius:6px;padding:2px 9px;font-weight:500;font-size:13px}
-.v-nok{display:inline-block;background:var(--red-bg);color:var(--red-txt);border-radius:6px;padding:2px 9px;font-weight:500;font-size:13px}
+.res-body th{background:var(--s2);padding:7px 10px;text-align:left;font-weight:600;border:1px solid var(--bdr)}
+.res-body td{padding:7px 10px;border:1px solid var(--bdr);line-height:1.5}
+.res-body tr:nth-child(even) td{background:var(--s2)}
+.v-ok{display:inline-block;background:var(--green-bg);color:var(--green-t);border-radius:6px;padding:2px 9px;font-weight:500;font-size:13px}
+.v-warn{display:inline-block;background:var(--amber-bg);color:var(--amber-t);border-radius:6px;padding:2px 9px;font-weight:500;font-size:13px}
+.v-nok{display:inline-block;background:var(--red-l);color:var(--red-t);border-radius:6px;padding:2px 9px;font-weight:500;font-size:13px}
 .v-unk{display:inline-block;background:var(--bg);color:var(--ink3);border-radius:6px;padding:2px 9px;font-weight:500;font-size:13px}
-.res-foot{padding:11px 18px;border-top:1px solid var(--border);display:flex;gap:8px;background:var(--surface2)}
-.bsm{border:1.5px solid var(--border);background:var(--surface);border-radius:6px;padding:6px 13px;font-family:'Geist',sans-serif;font-size:12px;cursor:pointer;color:var(--ink2);display:flex;align-items:center;gap:5px;transition:background .15s}
+.res-foot{padding:11px 18px;border-top:1px solid var(--bdr);display:flex;gap:8px;flex-wrap:wrap;background:var(--s2)}
+.btn-dl{display:flex;align-items:center;gap:5px;padding:7px 13px;background:var(--s);border:1px solid var(--bdr);border-radius:8px;font-size:12.5px;font-weight:500;color:var(--ink2);cursor:pointer;transition:all .18s}
+.btn-dl:hover{background:var(--blue-l);color:var(--blue);border-color:var(--blue);transform:translateY(-1px)}
+.bsm{border:1.5px solid var(--bdr);background:var(--s);border-radius:6px;padding:6px 12px;font-family:'Geist',sans-serif;font-size:12px;cursor:pointer;color:var(--ink2);display:flex;align-items:center;gap:4px;transition:background .15s}
 .bsm:hover{background:var(--bg)}
 .bsm.blue{border-color:var(--blue);color:var(--blue)}
-.bsm.blue:hover{background:var(--blue-light)}
+.bsm.blue:hover{background:var(--blue-l)}
 
-/* ── PRINT / PDF ── */
-@media print {
-  .drawer, #overlay, .topbar, .res-foot, .iv-hd, .section-sep, #iv-manual, .av-hd { display: none !important; }
-  body { background: #fff; }
-  .page { padding: 0; max-width: 100%; }
-  .card { box-shadow: none; border: none; }
-  .res { display: block !important; box-shadow: none; }
-  .res-body { padding: 10px 0; }
+@media print{
+  .topbar,#drawer,#overlay{display:none!important}
+  html,body{height:auto;overflow:auto}
+  .steps-wrap{position:static}
+  .step.active{position:static}
 }
-/* History items */
-.hist-item { padding: 8px 10px; border-radius: 7px; cursor: pointer; margin-bottom: 3px; transition: background .15s; }
-.hist-item:hover { background: var(--surface2); }
-.hist-date { font-size: 10px; color: var(--ink3); }
-.hist-addr { font-size: 12px; color: var(--ink2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hist-zone { font-size: 11px; color: var(--ink3); margin-top: 1px; }
 </style>
 </head>
 <body>
 
+<!-- DRAWER -->
 <div id="overlay" onclick="closeMenu()"></div>
-
 <aside id="drawer">
   <div class="d-brand">
-    <div class="d-logo"><img src="data:image/webp;base64,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" alt="Batipart"></div>
+    <div class="d-logo"><img src="data:image/webp;base64,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" alt="Batipart"></div>
     <div class="d-sub">Analyseur PLU · Île-de-France</div>
   </div>
   <div class="d-section">
-    <div class="d-label">Analyse PLU</div>
+    <div class="d-lbl">Navigation</div>
     <div class="d-item active">
-      <div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h18M3 15h18M9 3v18"/></svg></div>
-      <span class="d-label2">Analyses</span>
+      <div class="d-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h18M3 15h18M9 3v18"/></svg></div>
+      <span class="d-l2">Analyses PLU</span>
     </div>
     <div class="d-item soon">
-      <div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M5 9l7-7 7 7"/></svg></div>
-      <span class="d-label2">Gabarit & reculs</span>
+      <div class="d-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M5 9l7-7 7 7"/></svg></div>
+      <span class="d-l2">Gabarit & reculs</span>
       <span class="d-badge">Bientôt</span>
     </div>
     <div class="d-item soon">
-      <div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/></svg></div>
-      <span class="d-label2">Stationnement</span>
-      <span class="d-badge">Bientôt</span>
-    </div>
-  </div>
-  <div class="d-section">
-    <div class="d-label">Documents</div>
-    <div class="d-item soon">
-      <div class="d-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
-      <span class="d-label2">Note de synthèse</span>
+      <div class="d-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/></svg></div>
+      <span class="d-l2">Stationnement</span>
       <span class="d-badge">Bientôt</span>
     </div>
   </div>
   <div class="d-section">
-    <div class="d-label">Historique</div>
-    <div id="historyList" style="padding:0 6px;"></div>
+    <div class="d-lbl">Historique</div>
+    <div id="historyList" style="padding:0 6px"></div>
     <div id="historyEmpty" style="padding:8px 10px;font-size:11.5px;color:var(--ink3)">Aucune recherche</div>
   </div>
 </aside>
 
+<!-- TOPBAR -->
 <header class="topbar">
-  <button class="menu-btn" onclick="toggleMenu()">
+  <button class="menu-btn" onclick="toggleMenu()" aria-label="Menu">
     <span></span><span></span><span></span>
   </button>
-  <span class="topbar-title">Analyses PLU</span>
+  <button class="back-btn" id="backBtn" onclick="goBack()" aria-label="Retour">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>
+  </button>
+  <span class="topbar-title">Analyseur PLU</span>
+  <div class="step-dots">
+    <div class="dot-s on" id="dot0"></div>
+    <div class="dot-s" id="dot1"></div>
+  </div>
 </header>
 
-<main class="page">
+<!-- STEPS -->
+<div class="steps-wrap">
 
-  <!-- ÉTAPE 1 -->
-  <div class="card">
-    <div class="card-hd">
-      <div class="card-num">1</div>
-      <h2>Adresse et zone PLU</h2>
-    </div>
-    <div class="card-bd">
+  <!-- STEP 1 : Adresse -->
+  <div class="step active" id="step0">
+    <div class="s1-inner">
+      <div class="s1-eyebrow">Batipart · Urbanisme</div>
+      <h1 class="s1-title">Analysez votre PLU en quelques secondes</h1>
+      <p class="s1-sub">Entrez l'adresse du bien — la zone et le règlement sont détectés automatiquement.</p>
 
-      <!-- Automatique -->
-      <div class="iv on" id="iv-auto">
-        <div class="iv-hd" onclick="toggleIV('auto')">
-          <div class="iv-dot"></div>
-          <div class="iv-info">
-            <div class="iv-title">Automatique</div>
-            <div class="iv-sub">Zone et PLU détectés depuis l'adresse</div>
+      <div class="s1-card">
+        <div class="s1-field">
+          <label>Adresse du bien</label>
+          <div class="addr-row">
+            <input class="inp" id="address" type="text" placeholder="Ex: 48 rue Voltaire, 92150 Suresnes" onkeydown="if(event.key==='Enter')findZone()">
+            <button class="btn-find" id="btnFind" onclick="findZone()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              Trouver
+            </button>
           </div>
-          <div class="iv-arrow">›</div>
+          <div class="geo-box" id="geoBox"></div>
+          <div id="pluOk" style="display:none;margin-top:8px"></div>
+          <div class="warn-age" id="pluAgeWarning">⚠️ Ce règlement date de plus de 2 ans — vérifiez s'il a été mis à jour.</div>
         </div>
-        <div class="iv-bd">
-          <div class="field" style="margin-top:4px;margin-bottom:0">
-            <label>Adresse du bien</label>
-            <div class="addr-row">
-              <input type="text" id="address" placeholder="ex : 14 rue de Mantes, Colombes">
-              <button class="btn-find" id="btnFind" onclick="findZone()">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                Trouver
-              </button>
-            </div>
-            <div class="geo-box" id="geoBox"></div>
-          </div>
-          <div id="pluFoundBox" style="display:none;margin-top:10px">
-            <div class="plu-ok" id="pluOk"></div>
-            <div id="pluAgeWarning" style="display:none;margin-top:8px;background:#fef9ec;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#92400e;">
-            ⚠️ <strong>PLU potentiellement obsolète</strong> — ce document date de plus de 2 ans. Vérifiez qu'il est toujours en vigueur.
-          </div>
-          <div style="margin-top:8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;font-size:12px;color:#1e40af;line-height:1.6;">
-            📋 <strong>Important :</strong> Cet outil analyse uniquement le règlement écrit. Les surcharges graphiques du plan de zonage (maintien des surfaces de bureau, retraits obligatoires, emplacements réservés) ne sont pas détectées automatiquement — consultez le plan de zonage pour les vérifier.
-          </div>
-          <div id="pluReplaceBox" style="display:none">
-              <button class="btn-replace" onclick="showReplace()">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                Remplacer par un autre PLU
-              </button>
-              <div id="replaceZone" style="display:none">
-                <div class="drop" id="drop2">
-                  <input type="file" id="file2" accept=".pdf">
-                  <div class="drop-lbl">Glissez le PDF ici ou cliquez</div>
-                  <div class="file-tag" id="tag2"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div id="pluMissingBox" style="display:none;margin-top:10px">
-            <div class="warn-box">⚠️ PLU non trouvé automatiquement pour cette commune</div>
-            <div class="drop" id="drop1">
-              <input type="file" id="file1" accept=".pdf">
-              <div class="drop-lbl">Glissez le règlement PLU ici ou cliquez</div>
-              <div class="drop-sub">Format PDF uniquement</div>
-              <div class="file-tag" id="tag1"></div>
-            </div>
-          </div>
+
+        <div class="s1-field" id="zoneField">
+          <label>Zone PLU <span style="color:var(--ink3);font-weight:400">(renseignée automatiquement)</span></label>
+          <input class="inp inp-zone" id="zone" type="text" placeholder="Ex: UDa" oninput="checkAll()">
         </div>
+
+        <div class="s1-divider"><div></div><span>ou uploadez le PLU manuellement</span><div></div></div>
+
+        <div id="dropM" class="drop">
+          <input type="file" id="fileM" accept=".pdf">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto;display:block;color:var(--ink3)"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <div class="drop-lbl">Glissez votre PDF ici</div>
+          <div class="drop-sub">ou cliquez pour sélectionner</div>
+          <div class="file-tag" id="tagM"></div>
+        </div>
+
+        <button class="btn-continue" id="btnContinue" onclick="goNext()" disabled>
+          Continuer
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
       </div>
-
-      <div class="section-sep">
-        <div></div>
-        <span>ou</span>
-        <div></div>
-      </div>
-
-      <!-- Manuel -->
-      <div class="iv" id="iv-manual">
-        <div class="iv-hd" onclick="toggleIV('manual')">
-          <div class="iv-dot"></div>
-          <div class="iv-info">
-            <div class="iv-title">Manuel</div>
-            <div class="iv-sub">Renseigner la zone et uploader le règlement</div>
-          </div>
-          <div class="iv-arrow">›</div>
-        </div>
-        <div class="iv-bd">
-          <div class="field" style="margin-top:4px">
-            <label>Zone PLU</label>
-            <input type="text" id="zone" placeholder="ex : UBc · UG · UA · UM" oninput="checkAll()">
-          </div>
-          <div class="field" style="margin-bottom:0">
-            <label>Règlement PLU — fichier PDF</label>
-            <div class="drop" id="dropM">
-              <input type="file" id="fileM" accept=".pdf">
-              <div class="drop-lbl">Glissez le règlement PLU ici ou cliquez</div>
-              <div class="drop-sub">Format PDF uniquement</div>
-              <div class="file-tag" id="tagM"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
     </div>
   </div>
 
-  <!-- ÉTAPE 2 -->
-  <div class="card">
-    <div class="card-hd">
-      <div class="card-num">2</div>
-      <h2>Choisissez votre analyse</h2>
-    </div>
-    <div class="card-bd" style="padding-top:14px">
+  <!-- STEP 2 : Analyse -->
+  <div class="step front" id="step1">
+    <div class="s2-inner">
 
-      <div class="av" id="av-destination">
-        <div class="av-hd" onclick="toggleAV('destination')">
-          <div class="av-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9h18M3 15h18M9 3v18"/></svg></div>
-          <div class="av-info">
-            <div class="av-title">Changement de destination</div>
-            <div class="av-sub">Bureaux → Logements · Bâtiment existant</div>
+      <div class="s2-hero" id="heroCard">
+        <div class="s2-hero-label">Bien analysé</div>
+        <div class="s2-hero-addr" id="heroAddr">—</div>
+        <div class="s2-hero-zone" id="heroZone">—</div>
+        <div class="s2-hero-plu" id="heroPlu"></div>
+      </div>
+
+      <p class="s2-section-title">Choisissez une analyse</p>
+
+      <div class="acard" id="av-destination">
+        <div class="acard-hd" onclick="toggleAV('destination')">
+          <div class="acard-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9h18M3 15h18M9 3v18"/></svg></div>
+          <div class="acard-info">
+            <div class="acard-title">Changement de destination</div>
+            <div class="acard-sub">Bureaux → logements · Bâtiment existant</div>
           </div>
-          <div class="av-arrow">›</div>
+          <div class="acard-arrow">›</div>
         </div>
-        <div class="av-bd">
+        <div class="acard-bd" id="bd-destination" style="display:none">
           <button class="btn-go" id="btn-destination" onclick="runAnalysis('destination')" disabled>Lancer l'analyse</button>
           <div class="err" id="err-destination"></div>
-          <div class="spin" id="sp-destination"><div class="progress-bar"><div class="progress-fill" id="pf-destination" style="width:0%"></div></div><p>Analyse en cours… <span id="pct-destination">0%</span></p><small id="step-destination">Téléchargement du règlement…</small></div>
+          <div class="spin" id="sp-destination">
+            <div class="progress-bar"><div class="progress-fill" id="pf-destination" style="width:0%"></div></div>
+            <p>Analyse en cours… <span id="pct-destination">0%</span></p>
+            <small id="step-destination">Téléchargement du règlement…</small>
+          </div>
           <div class="res" id="res-destination">
             <div class="res-top"><h3>Changement de destination</h3><span class="ztag" id="zt-destination"></span></div>
             <div class="res-body" id="rb-destination"></div>
             <div class="res-foot">
-              <button class="btn-dl" onclick="downloadNote('destination')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Note de synthèse</button><button class="bsm blue" onclick="copyR('destination')">📋 Copier</button>
+              <button class="btn-dl" onclick="downloadNote('destination')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Note de synthèse</button>
+              <button class="bsm blue" onclick="copyR('destination')">📋 Copier</button>
               <button class="bsm" onclick="resetR('destination')">↩ Réinitialiser</button>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="av" id="av-surelevation">
-        <div class="av-hd" onclick="toggleAV('surelevation')">
-          <div class="av-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M5 9l7-7 7 7"/></svg></div>
-          <div class="av-info">
-            <div class="av-title">Surélévation</div>
-            <div class="av-sub">Ajout d'étages · Hauteur max · Gabarit</div>
+      <div class="acard" id="av-surelevation">
+        <div class="acard-hd" onclick="toggleAV('surelevation')">
+          <div class="acard-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M5 9l7-7 7 7"/></svg></div>
+          <div class="acard-info">
+            <div class="acard-title">Surélévation</div>
+            <div class="acard-sub">Ajout d'étages · Hauteur max · Gabarit</div>
           </div>
-          <div class="av-arrow">›</div>
+          <div class="acard-arrow">›</div>
         </div>
-        <div class="av-bd">
+        <div class="acard-bd" id="bd-surelevation" style="display:none">
           <button class="btn-go" id="btn-surelevation" onclick="runAnalysis('surelevation')" disabled>Lancer l'analyse</button>
           <div class="err" id="err-surelevation"></div>
-          <div class="spin" id="sp-surelevation"><div class="progress-bar"><div class="progress-fill" id="pf-surelevation" style="width:0%"></div></div><p>Analyse en cours… <span id="pct-surelevation">0%</span></p><small id="step-surelevation">Téléchargement du règlement…</small></div>
+          <div class="spin" id="sp-surelevation">
+            <div class="progress-bar"><div class="progress-fill" id="pf-surelevation" style="width:0%"></div></div>
+            <p>Analyse en cours… <span id="pct-surelevation">0%</span></p>
+            <small id="step-surelevation">Téléchargement du règlement…</small>
+          </div>
           <div class="res" id="res-surelevation">
             <div class="res-top"><h3>Surélévation</h3><span class="ztag" id="zt-surelevation"></span></div>
             <div class="res-body" id="rb-surelevation"></div>
             <div class="res-foot">
-              <button class="btn-dl" onclick="downloadNote('surelevation')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Note de synthèse</button><button class="bsm blue" onclick="copyR('surelevation')">📋 Copier</button>
+              <button class="btn-dl" onclick="downloadNote('surelevation')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Note de synthèse</button>
+              <button class="bsm blue" onclick="copyR('surelevation')">📋 Copier</button>
               <button class="bsm" onclick="resetR('surelevation')">↩ Réinitialiser</button>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="av" id="av-extension">
-        <div class="av-hd" onclick="toggleAV('extension')">
-          <div class="av-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/><path d="M13 7h4v4M11 17H7v-4"/></svg></div>
-          <div class="av-info">
-            <div class="av-title">Extension</div>
-            <div class="av-sub">Agrandissement · Emprise au sol · Reculs</div>
+      <div class="acard" id="av-extension">
+        <div class="acard-hd" onclick="toggleAV('extension')">
+          <div class="acard-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/><path d="M13 7h4v4M11 17H7v-4"/></svg></div>
+          <div class="acard-info">
+            <div class="acard-title">Extension</div>
+            <div class="acard-sub">Agrandissement · Emprise au sol · Reculs</div>
           </div>
-          <div class="av-arrow">›</div>
+          <div class="acard-arrow">›</div>
         </div>
-        <div class="av-bd">
+        <div class="acard-bd" id="bd-extension" style="display:none">
           <button class="btn-go" id="btn-extension" onclick="runAnalysis('extension')" disabled>Lancer l'analyse</button>
           <div class="err" id="err-extension"></div>
-          <div class="spin" id="sp-extension"><div class="progress-bar"><div class="progress-fill" id="pf-extension" style="width:0%"></div></div><p>Analyse en cours… <span id="pct-extension">0%</span></p><small id="step-extension">Téléchargement du règlement…</small></div>
+          <div class="spin" id="sp-extension">
+            <div class="progress-bar"><div class="progress-fill" id="pf-extension" style="width:0%"></div></div>
+            <p>Analyse en cours… <span id="pct-extension">0%</span></p>
+            <small id="step-extension">Téléchargement du règlement…</small>
+          </div>
           <div class="res" id="res-extension">
             <div class="res-top"><h3>Extension</h3><span class="ztag" id="zt-extension"></span></div>
             <div class="res-body" id="rb-extension"></div>
             <div class="res-foot">
-              <button class="btn-dl" onclick="downloadNote('extension')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Note de synthèse</button><button class="bsm blue" onclick="copyR('extension')">📋 Copier</button>
+              <button class="btn-dl" onclick="downloadNote('extension')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Note de synthèse</button>
+              <button class="bsm blue" onclick="copyR('extension')">📋 Copier</button>
               <button class="bsm" onclick="resetR('extension')">↩ Réinitialiser</button>
             </div>
           </div>
@@ -430,14 +390,60 @@ input[type=text]::placeholder{color:var(--ink3)}
 
     </div>
   </div>
-</main>
+</div>
 
 <script>
 // STATE
 let pluUrl = null, pluBase64 = null, currentAddress = '', currentCity = '';
 const results = {};
+let currentStep = 0;
 
-// DRAWER
+// ── NAVIGATION ──
+function goNext() {
+  const zone = document.getElementById('zone').value.trim();
+  if (!zone) return;
+
+  // Update hero card
+  document.getElementById('heroAddr').textContent = currentAddress || document.getElementById('address').value;
+  document.getElementById('heroZone').textContent = 'Zone ' + zone;
+  const pluOk = document.getElementById('pluOk');
+  document.getElementById('heroPlu').innerHTML = pluOk && pluOk.style.display !== 'none' ? pluOk.innerHTML : '';
+
+  navigate(0, 1);
+}
+
+function goBack() {
+  navigate(1, 0);
+}
+
+function navigate(from, to) {
+  const fromEl = document.getElementById('step' + from);
+  const toEl = document.getElementById('step' + to);
+  const forward = to > from;
+
+  // Set initial state for incoming step
+  toEl.className = 'step ' + (forward ? 'front' : 'behind');
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      fromEl.className = 'step ' + (forward ? 'behind' : 'front');
+      toEl.className = 'step active';
+    });
+  });
+
+  currentStep = to;
+
+  // Update back button
+  const backBtn = document.getElementById('backBtn');
+  if (to > 0) { backBtn.classList.add('on'); } else { backBtn.classList.remove('on'); }
+
+  // Update dots
+  document.querySelectorAll('.dot-s').forEach((d, i) => {
+    d.className = 'dot-s' + (i === to ? ' on' : '');
+  });
+}
+
+// ── DRAWER ──
 function toggleMenu() {
   document.getElementById('drawer').classList.toggle('on');
   document.getElementById('overlay').classList.toggle('on');
@@ -447,37 +453,40 @@ function closeMenu() {
   document.getElementById('overlay').classList.remove('on');
 }
 
-// INPUT VOLETS
-function toggleIV(id) {
-  const el = document.getElementById('iv-' + id);
-  el.classList.toggle('on');
-}
-
-// ANALYSIS VOLETS
+// ── ANALYSIS VOLETS ──
 function toggleAV(id) {
   const el = document.getElementById('av-' + id);
+  const bd = document.getElementById('bd-' + id);
+  const isOn = el.classList.contains('on');
   el.classList.toggle('on');
+  if (!isOn) {
+    bd.style.display = 'block';
+    bd.style.animation = 'fadeUp .25s ease';
+  } else {
+    bd.style.display = 'none';
+  }
 }
 
-// CHECK READY
+// ── CHECK READY ──
 function checkAll() {
   const z = document.getElementById('zone');
   const ok = z && z.value.trim().length > 0;
+  const cont = document.getElementById('btnContinue');
+  if (cont) cont.disabled = !ok;
   ['destination','surelevation','extension'].forEach(id => {
     const b = document.getElementById('btn-' + id);
     if (b) b.disabled = !ok;
   });
 }
 
-// GEO
+// ── GEO ──
 function showGeo(type, html) {
   const el = document.getElementById('geoBox');
-  el.className = {ok:'geo-box geo-ok',err:'geo-box geo-err',warn:'geo-box geo-load',load:'geo-box geo-load'}[type];
+  el.className = 'geo-box geo-' + type;
   el.innerHTML = html;
-  el.style.display = 'block';
 }
 
-// FIND ZONE
+// ── FIND ZONE ──
 async function findZone() {
   const addr = document.getElementById('address').value.trim();
   if (!addr) return;
@@ -501,29 +510,22 @@ async function findZone() {
     if (d.pluUrl) {
       pluUrl = d.pluUrl;
       const po = document.getElementById('pluOk');
-      po.innerHTML = '📄 <strong>' + (d.pluName||'Règlement PLU') + '</strong> &nbsp;<a href="' + d.pluUrl + '" target="_blank" style="color:var(--green-txt);font-size:12px">↗ Télécharger</a>';
+      po.innerHTML = '📄 <strong style="color:var(--ink2)">' + (d.pluName||'Règlement PLU') + '</strong> &nbsp;<a href="' + d.pluUrl + '" target="_blank" style="color:var(--blue);font-size:12px">↗ Télécharger</a>';
       po.style.display = 'block';
-      document.getElementById('pluFoundBox').style.display = 'block';
-      document.getElementById('pluMissingBox').style.display = 'none';
-      document.getElementById('pluReplaceBox').style.display = 'block';
-    } else {
-      document.getElementById('pluFoundBox').style.display = 'none';
-      document.getElementById('pluMissingBox').style.display = 'block';
     }
+    setTimeout(() => {
+      if (d.zone && d.address) saveHistory(d.address, d.zone, d.pluName);
+      if (d.pluName) checkPluAge(d.pluName);
+    }, 500);
   } catch(e) {
     showGeo('err', '❌ ' + e.message);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Trouver';
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Trouver';
   }
 }
 
-function showReplace() {
-  document.getElementById('replaceZone').style.display = 'block';
-  event.target.closest('.btn-replace').style.display = 'none';
-}
-
-// RUN ANALYSIS
+// ── RUN ANALYSIS ──
 const abortControllers = {};
 
 function restoreBtn(type) {
@@ -538,7 +540,6 @@ function cancelAnalysis(type) {
   document.getElementById('sp-' + type).className = 'spin';
   restoreBtn(type);
 }
-
 function setProgress(type, pct, step) {
   const pf = document.getElementById('pf-' + type);
   const pctEl = document.getElementById('pct-' + type);
@@ -560,6 +561,7 @@ async function runAnalysis(type) {
   spEl.className = 'spin on';
   btnEl.textContent = '✕ Annuler l\'analyse';
   btnEl.style.background = '#dc2626';
+  btnEl.style.boxShadow = '0 2px 10px rgba(220,38,38,.25)';
   btnEl.disabled = false;
   btnEl.onclick = () => cancelAnalysis(type);
   setProgress(type, 5, 'Téléchargement du règlement…');
@@ -567,7 +569,6 @@ async function runAnalysis(type) {
   const controller = new AbortController();
   abortControllers[type] = controller;
 
-  // Simule la progression pendant l'attente
   const steps = [
     [10, 'Téléchargement du règlement…'],
     [25, 'Extraction du texte…'],
@@ -577,16 +578,12 @@ async function runAnalysis(type) {
   ];
   let stepIdx = 0;
   const progressInterval = setInterval(() => {
-    if (stepIdx < steps.length) {
-      setProgress(type, steps[stepIdx][0], steps[stepIdx][1]);
-      stepIdx++;
-    }
+    if (stepIdx < steps.length) { setProgress(type, steps[stepIdx][0], steps[stepIdx][1]); stepIdx++; }
   }, 2000);
 
   try {
     const r = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({zone, analysisType: type, pluUrl, pluBase64, commune: currentCity, address: currentAddress}),
       signal: controller.signal
     });
@@ -607,110 +604,43 @@ async function runAnalysis(type) {
     clearInterval(progressInterval);
     spEl.className = 'spin';
     restoreBtn(type);
-    if (e.name !== 'AbortError') {
-      errEl.textContent = '⚠️ ' + e.message;
-      errEl.className = 'err on';
-    }
+    if (e.name !== 'AbortError') { errEl.textContent = '⚠️ ' + e.message; errEl.className = 'err on'; }
     delete abortControllers[type];
   }
 }
 
-// MARKDOWN
+// ── MARKDOWN ──
 function downloadNote(type) {
   const zone = document.getElementById('zone')?.value || '';
   const address = currentAddress || '';
   const result = results[type] || '';
   const opLabels = {destination:'Changement de destination',surelevation:'Surélévation',extension:'Extension'};
   const date = new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
-
-  const html = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<title>Note de synthèse PLU — ${zone} — ${address}</title>
-<style>
-  body{font-family:'Segoe UI',Arial,sans-serif;max-width:780px;margin:40px auto;color:#1a1a1a;font-size:14px;line-height:1.7;padding:0 24px}
-  .header{border-bottom:2px solid #2C4A6E;padding-bottom:16px;margin-bottom:24px}
-  .header h1{font-size:20px;color:#2C4A6E;margin:0 0 4px}
-  .header .meta{font-size:12px;color:#666}
-  h2{font-size:15px;font-weight:600;color:#1a1a1a;margin:20px 0 8px;padding-left:10px;border-left:3px solid #2C4A6E}
-  blockquote{background:#f5f5f3;border-left:3px solid #2C4A6E;padding:8px 14px;margin:10px 0;font-size:13px;color:#444;border-radius:0 5px 5px 0}
-  p{margin:0 0 8px}
-  strong{font-weight:600}
-  table{width:100%;border-collapse:collapse;margin:12px 0}
-  th{background:#2C4A6E;color:#fff;padding:8px 12px;text-align:left;font-size:13px}
-  td{padding:7px 12px;border:1px solid #ddd;font-size:13px}
-  tr:nth-child(even) td{background:#f9f8f6}
-  .footer{margin-top:40px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#999}
-  @media print{body{margin:20px}}
-</style>
-</head>
-<body>
-<div class="header">
-  <h1>Note de synthèse — Analyse PLU</h1>
-  <div class="meta">
-    <strong>Adresse :</strong> ${address} &nbsp;|&nbsp;
-    <strong>Zone :</strong> ${zone} &nbsp;|&nbsp;
-    <strong>Opération :</strong> ${opLabels[type] || type}<br>
-    <strong>Date :</strong> ${date}
-  </div>
-</div>
-${mdToHtml(result)}
-<div class="footer">Document généré par l'outil Analyseur PLU — Batipart · Analyse basée sur le règlement écrit. Pour un dépôt de permis, faire vérifier les plans graphiques par un architecte.</div>
-</body>
-</html>`;
-
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Note de synthèse PLU — ${zone}</title><style>body{font-family:'Segoe UI',Arial,sans-serif;max-width:780px;margin:40px auto;color:#1a1a1a;font-size:14px;line-height:1.7;padding:0 24px}.header{border-bottom:2px solid #2C4A6E;padding-bottom:16px;margin-bottom:24px}.header h1{font-size:20px;color:#2C4A6E;margin:0 0 4px}.header .meta{font-size:12px;color:#666}h2{font-size:15px;font-weight:600;color:#1a1a1a;margin:20px 0 8px;padding-left:10px;border-left:3px solid #2C4A6E}blockquote{background:#f5f5f3;border-left:3px solid #2C4A6E;padding:8px 14px;margin:10px 0;font-size:13px;color:#444;border-radius:0 5px 5px 0}p{margin:0 0 8px}strong{font-weight:600}table{width:100%;border-collapse:collapse;margin:12px 0}th{background:#2C4A6E;color:#fff;padding:8px 12px;text-align:left;font-size:13px}td{padding:7px 12px;border:1px solid #ddd;font-size:13px}tr:nth-child(even) td{background:#f9f8f6}.footer{margin-top:40px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#999}@media print{body{margin:20px}}</style></head><body><div class="header"><h1>Note de synthèse — Analyse PLU</h1><div class="meta"><strong>Adresse :</strong> ${address} &nbsp;|&nbsp; <strong>Zone :</strong> ${zone} &nbsp;|&nbsp; <strong>Opération :</strong> ${opLabels[type] || type}<br><strong>Date :</strong> ${date}</div></div>${mdToHtml(result)}<div class="footer">Document généré par l'outil Analyseur PLU — Batipart · Analyse basée sur le règlement écrit. Pour un dépôt de permis, faire vérifier les plans graphiques par un architecte.</div></body></html>`;
   const blob = new Blob([html], {type:'text/html;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url;
-  a.download = 'note-synthese-PLU-' + zone + '-' + date.replace(/ /g,'-') + '.html';
-  a.click();
+  a.href = url; a.download = 'note-synthese-PLU-' + zone + '-' + date.replace(/ /g,'-') + '.html'; a.click();
   URL.revokeObjectURL(url);
 }
 
 function mdToHtml(s) {
-  return s
-    .replace(/^## (.+)$/gm,'<h2>$1</h2>')
-    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
-    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-    .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>')
-    .replace(/^- (.+)$/gm,'<li>$1</li>')
-    .replace(/(<li>.*<\/li>\n?)+/g,m=>'<ul>'+m+'</ul>')
-    .replace(/((?:^\|.+\|\n?)+)/gm, table => {
-      const rows = table.trim().split('\n').filter(r => !/^\|[-:\s|]+\|$/.test(r));
-      return '<table>' + rows.map((r,i) => {
-        const cells = r.split('|').slice(1,-1).map(c=>c.trim());
-        const tag = i===0?'th':'td';
-        return '<tr>'+cells.map(c=>`<${tag}>${c}</${tag}>`).join('')+'</tr>';
-      }).join('') + '</table>';
-    })
-    .replace(/\n/g,'<br>');
+  return s.replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>').replace(/^- (.+)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g,m=>'<ul>'+m+'</ul>').replace(/((?:^\|.+\|\n?)+)/gm,table=>{const rows=table.trim().split('\n').filter(r=>!/^\|[-:\s|]+\|$/.test(r));return '<table>'+rows.map((r,i)=>{const cells=r.split('|').slice(1,-1).map(c=>c.trim());const tag=i===0?'th':'td';return '<tr>'+cells.map(c=>`<${tag}>${c}</${tag}>`).join('')+'</tr>';}).join('')+'</table>';}).replace(/\n/g,'<br>');
 }
 
 function mdParse(s) {
-  let h = s
-    .replace(/^---$/gm,'<hr>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^### (.+)$/gm,'<h3>$1</h3>')
-    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>')
-    .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>')
-    .replace(/^[\-•] (.+)$/gm,'<li>$1</li>').replace(/^\d+\. (.+)$/gm,'<li>$1</li>');
+  let h = s.replace(/^---$/gm,'<hr>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>').replace(/^[\-•] (.+)$/gm,'<li>$1</li>').replace(/^\d+\. (.+)$/gm,'<li>$1</li>');
   h = h.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, m => '<ul>'+m+'</ul>');
-  // Rendu des tableaux markdown
   h = h.replace(/((?:^\|.+\|\n?)+)/gm, table => {
     const rows = table.trim().split('\n').filter(r => !/^\|[-:\s|]+\|$/.test(r));
     if (rows.length < 1) return table;
-    return '<table>' + rows.map((r, i) => {
-      const cells = r.split('|').slice(1,-1).map(c => c.trim());
-      const tag = i === 0 ? 'th' : 'td';
-      return '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
-    }).join('') + '</table>';
+    return '<table>' + rows.map((r, i) => { const cells = r.split('|').slice(1,-1).map(c => c.trim()); const tag = i === 0 ? 'th' : 'td'; return '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>'; }).join('') + '</table>';
   });
   h = h.split('\n').map(l=>{l=l.trim();if(!l)return'';if(/^<(h[23]|ul|blockquote|hr)/.test(l))return l;return '<p>'+l+'</p>';}).join('\n');
   h = h.replace(/(✅[^\n<]+)/g,'<span class="v-ok">$1</span>').replace(/(⚠️[^\n<]+)/g,'<span class="v-warn">$1</span>').replace(/(❌[^\n<]+)/g,'<span class="v-nok">$1</span>').replace(/(❓[^\n<]+)/g,'<span class="v-unk">$1</span>');
   return h;
 }
 
-// COPY / RESET
 function copyR(type) {
   if (!results[type]) return;
   navigator.clipboard.writeText(results[type]).then(() => {
@@ -719,13 +649,9 @@ function copyR(type) {
     setTimeout(() => b.innerHTML = '📋 Copier', 2000);
   });
 }
-function resetR(type) {
-  results[type] = null;
-  document.getElementById('res-'+type).className = 'res';
-  document.getElementById('err-'+type).className = 'err';
-}
+function resetR(type) { results[type] = null; document.getElementById('res-'+type).className = 'res'; document.getElementById('err-'+type).className = 'err'; }
 
-// FILE UPLOADS
+// ── FILE UPLOADS ──
 function loadFile(file, tagId) {
   if (!file || file.type !== 'application/pdf') return;
   const ft = document.getElementById(tagId);
@@ -743,26 +669,14 @@ function setupDrop(dropId, fileId, tagId) {
   dz.addEventListener('dragleave', () => dz.classList.remove('over'));
   dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); loadFile(e.dataTransfer.files[0], tagId); });
 }
-document.addEventListener('DOMContentLoaded', () => {
-  setupDrop('drop1', 'file1', 'tag1');
-  setupDrop('drop2', 'file2', 'tag2');
-  setupDrop('dropM', 'fileM', 'tagM');
-});
 
 // ── HISTORIQUE ──
 function saveHistory(address, zone, pluName) {
   const history = JSON.parse(localStorage.getItem('plu_history') || '[]');
-  const entry = {
-    date: new Date().toLocaleDateString('fr-FR'),
-    address,
-    zone,
-    pluName: pluName || ''
-  };
-  history.unshift(entry);
+  history.unshift({ date: new Date().toLocaleDateString('fr-FR'), address, zone, pluName: pluName || '' });
   localStorage.setItem('plu_history', JSON.stringify(history.slice(0, 20)));
   renderHistory();
 }
-
 function renderHistory() {
   const history = JSON.parse(localStorage.getItem('plu_history') || '[]');
   const list = document.getElementById('historyList');
@@ -770,15 +684,8 @@ function renderHistory() {
   if (!list) return;
   if (!history.length) { empty.style.display = 'block'; list.innerHTML = ''; return; }
   empty.style.display = 'none';
-  list.innerHTML = history.map((h, i) => `
-    <div class="hist-item" onclick="loadHistory(${i})">
-      <div class="hist-date">${h.date}</div>
-      <div class="hist-addr">${h.address}</div>
-      <div class="hist-zone">Zone ${h.zone} · ${h.pluName?.split(' — ')[0] || ''}</div>
-    </div>
-  `).join('');
+  list.innerHTML = history.map((h, i) => `<div class="hist-item" onclick="loadHistory(${i})"><div class="hist-date">${h.date}</div><div class="hist-addr">${h.address}</div><div class="hist-zone">Zone ${h.zone}</div></div>`).join('');
 }
-
 function loadHistory(i) {
   const history = JSON.parse(localStorage.getItem('plu_history') || '[]');
   const h = history[i];
@@ -786,11 +693,8 @@ function loadHistory(i) {
   document.getElementById('address').value = h.address;
   const z = document.getElementById('zone');
   if (z) z.value = h.zone;
-  checkAll();
-  closeMenu();
+  checkAll(); closeMenu();
 }
-
-// ── PLU AGE CHECK ──
 function checkPluAge(pluName) {
   const m = pluName?.match(/(\d{2})\/(\d{2})\/(\d{4})/);
   if (!m) return;
@@ -800,62 +704,10 @@ function checkPluAge(pluName) {
   if (warn) warn.style.display = diffYears > 2 ? 'block' : 'none';
 }
 
-// ── EXPORT PDF ──
-function exportPDF(type) {
-  const zone = document.getElementById('zone')?.value || '';
-  const addr = document.getElementById('address')?.value || '';
-  const content = document.getElementById('rb-' + type)?.innerHTML || '';
-  const labels = { destination: 'Changement de destination', surelevation: 'Surélévation', extension: 'Extension' };
-  
-  const win = window.open('', '_blank');
-  win.document.write(`<!DOCTYPE html><html><head>
-    <meta charset="UTF-8">
-    <title>Analyse PLU — ${labels[type]}</title>
-    <style>
-      body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }
-      h1 { font-size: 20px; border-bottom: 2px solid #2C4A6E; padding-bottom: 10px; color: #2C4A6E; }
-      .meta { font-size: 12px; color: #666; margin-bottom: 24px; }
-      h2 { font-size: 15px; font-weight: 600; margin: 20px 0 8px; color: #1a1a1a; border-left: 3px solid #2C4A6E; padding-left: 10px; }
-      h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #999; margin: 14px 0 6px; }
-      p { font-size: 13px; line-height: 1.8; color: #444; margin-bottom: 7px; }
-      ul { padding-left: 16px; } li { font-size: 13px; line-height: 1.75; color: #444; margin-bottom: 3px; }
-      blockquote { background: #f5f7fa; border-left: 3px solid #2C4A6E; padding: 8px 13px; margin: 8px 0; font-size: 12px; line-height: 1.7; color: #334; border-radius: 0 4px 4px 0; }
-      .v-ok { background: #ecfdf5; color: #065f46; border-radius: 5px; padding: 2px 8px; font-weight: 600; }
-      .v-warn { background: #fffbeb; color: #92400e; border-radius: 5px; padding: 2px 8px; font-weight: 600; }
-      .v-nok { background: #fef2f2; color: #991b1b; border-radius: 5px; padding: 2px 8px; font-weight: 600; }
-      .footer { margin-top: 40px; font-size: 11px; color: #999; border-top: 1px solid #eee; padding-top: 10px; }
-    </style>
-  </head><body>
-    <h1>Analyse PLU — ${labels[type]}</h1>
-    <div class="meta">
-      <strong>Adresse :</strong> ${addr}<br>
-      <strong>Zone :</strong> ${zone}<br>
-      <strong>Date d'analyse :</strong> ${new Date().toLocaleDateString('fr-FR')}
-    </div>
-    ${content}
-    <div class="footer">Document généré par l'Analyseur PLU Batipart — à titre indicatif uniquement. Vérifier avec un professionnel du droit de l'urbanisme.</div>
-  </body></html>`);
-  win.document.close();
-  setTimeout(() => win.print(), 500);
-}
-
-// Init
-renderHistory();
-
-// Patch findZone to save history and check PLU age
-const _origFZ = findZone;
-findZone = async function() {
-  await _origFZ.apply(this, arguments);
-  // Save to history after zone found
-  setTimeout(() => {
-    const addr = document.getElementById('address')?.value;
-    const zone = document.getElementById('zone')?.value;
-    const pluName = document.getElementById('pluOk')?.textContent;
-    if (addr && zone) saveHistory(addr, zone, pluName);
-    if (pluName) checkPluAge(pluName);
-  }, 2000);
-};
-
+document.addEventListener('DOMContentLoaded', () => {
+  setupDrop('dropM', 'fileM', 'tagM');
+  renderHistory();
+});
 </script>
 </body>
 </html>
