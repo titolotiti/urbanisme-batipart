@@ -364,7 +364,7 @@ input[type=text]::placeholder{color:var(--ink3)}
           <div class="av-arrow">›</div>
         </div>
         <div class="av-bd">
-          <button class="btn-go" id="btn-destination" onclick="runAnalysis('destination')" disabled>Lancer l'analyse</button><button class="btn-cancel" id="cancel-destination" onclick="cancelAnalysis('destination')" style="display:none">✕ Annuler l'analyse</button>
+          <button class="btn-go" id="btn-destination" onclick="runAnalysis('destination')" disabled>Lancer l'analyse</button>
           <div class="err" id="err-destination"></div>
           <div class="spin" id="sp-destination"><div class="progress-bar"><div class="progress-fill" id="pf-destination" style="width:0%"></div></div><p>Analyse en cours… <span id="pct-destination">0%</span></p><small id="step-destination">Téléchargement du règlement…</small></div>
           <div class="res" id="res-destination">
@@ -388,7 +388,7 @@ input[type=text]::placeholder{color:var(--ink3)}
           <div class="av-arrow">›</div>
         </div>
         <div class="av-bd">
-          <button class="btn-go" id="btn-surelevation" onclick="runAnalysis('surelevation')" disabled>Lancer l'analyse</button><button class="btn-cancel" id="cancel-surelevation" onclick="cancelAnalysis('surelevation')" style="display:none">✕ Annuler l'analyse</button>
+          <button class="btn-go" id="btn-surelevation" onclick="runAnalysis('surelevation')" disabled>Lancer l'analyse</button>
           <div class="err" id="err-surelevation"></div>
           <div class="spin" id="sp-surelevation"><div class="progress-bar"><div class="progress-fill" id="pf-surelevation" style="width:0%"></div></div><p>Analyse en cours… <span id="pct-surelevation">0%</span></p><small id="step-surelevation">Téléchargement du règlement…</small></div>
           <div class="res" id="res-surelevation">
@@ -412,7 +412,7 @@ input[type=text]::placeholder{color:var(--ink3)}
           <div class="av-arrow">›</div>
         </div>
         <div class="av-bd">
-          <button class="btn-go" id="btn-extension" onclick="runAnalysis('extension')" disabled>Lancer l'analyse</button><button class="btn-cancel" id="cancel-extension" onclick="cancelAnalysis('extension')" style="display:none">✕ Annuler l'analyse</button>
+          <button class="btn-go" id="btn-extension" onclick="runAnalysis('extension')" disabled>Lancer l'analyse</button>
           <div class="err" id="err-extension"></div>
           <div class="spin" id="sp-extension"><div class="progress-bar"><div class="progress-fill" id="pf-extension" style="width:0%"></div></div><p>Analyse en cours… <span id="pct-extension">0%</span></p><small id="step-extension">Téléchargement du règlement…</small></div>
           <div class="res" id="res-extension">
@@ -524,15 +524,17 @@ function showReplace() {
 // RUN ANALYSIS
 const abortControllers = {};
 
-function cancelAnalysis(type) {
-  if (abortControllers[type]) {
-    abortControllers[type].abort();
-    delete abortControllers[type];
-  }
-  document.getElementById('sp-' + type).className = 'spin';
-  document.getElementById('cancel-' + type).style.display = 'none';
+function restoreBtn(type) {
   const btnEl = document.getElementById('btn-' + type);
-  btnEl.style.display = 'inline-block'; btnEl.disabled = false;
+  btnEl.textContent = 'Lancer l\'analyse';
+  btnEl.style.background = '';
+  btnEl.disabled = false;
+  btnEl.onclick = () => runAnalysis(type);
+}
+function cancelAnalysis(type) {
+  if (abortControllers[type]) { abortControllers[type].abort(); delete abortControllers[type]; }
+  document.getElementById('sp-' + type).className = 'spin';
+  restoreBtn(type);
 }
 
 function setProgress(type, pct, step) {
@@ -553,8 +555,11 @@ async function runAnalysis(type) {
   const resEl = document.getElementById('res-' + type);
   const btnEl = document.getElementById('btn-' + type);
   errEl.className = 'err'; resEl.className = 'res';
-  spEl.className = 'spin on'; btnEl.style.display = 'none';
-  document.getElementById('cancel-' + type).style.display = 'inline-block';
+  spEl.className = 'spin on';
+  btnEl.textContent = '✕ Annuler l\'analyse';
+  btnEl.style.background = '#dc2626';
+  btnEl.disabled = false;
+  btnEl.onclick = () => cancelAnalysis(type);
   setProgress(type, 5, 'Téléchargement du règlement…');
 
   const controller = new AbortController();
@@ -591,8 +596,7 @@ async function runAnalysis(type) {
     setProgress(type, 100, 'Terminé !');
     await new Promise(res => setTimeout(res, 300));
     spEl.className = 'spin';
-    document.getElementById('cancel-' + type).style.display = 'none';
-    btnEl.style.display = 'inline-block'; btnEl.disabled = false;
+    restoreBtn(type);
     document.getElementById('zt-' + type).textContent = 'Zone ' + zone;
     document.getElementById('rb-' + type).innerHTML = mdParse(d.result);
     resEl.className = 'res on';
@@ -600,8 +604,7 @@ async function runAnalysis(type) {
   } catch(e) {
     clearInterval(progressInterval);
     spEl.className = 'spin';
-    document.getElementById('cancel-' + type).style.display = 'none';
-    btnEl.style.display = 'inline-block'; btnEl.disabled = false;
+    restoreBtn(type);
     if (e.name !== 'AbortError') {
       errEl.textContent = '⚠️ ' + e.message;
       errEl.className = 'err on';
