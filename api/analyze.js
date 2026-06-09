@@ -170,18 +170,22 @@ export default async function handler(req, res) {
       } catch(e) {}
     }
 
-    // Extrait uniquement la section de la zone
-    const zoneText = extractZoneText(fullText, zone);
-    console.log('Texte zone:', zoneText.length, 'chars');
+    // Texte complet — Sonnet trouve lui-même tous les articles
+    let sendText = fullText;
+    if (fullText.length > 150000) {
+      sendText = fullText.slice(0, 100000) + '\n...\n' + fullText.slice(-50000);
+    }
+    console.log('Texte envoyé:', sendText.length, 'chars');
 
-    // Analyse avec Sonnet — un seul appel
+    const fullPrompt = 'Voici le règlement PLU complet. Trouve et analyse TOUS les articles concernant la zone "' + zone + '".\n\n' + sendText + '\n\n---\n\n' + prompt;
+
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 4000,
-        messages: [{ role: 'user', content: `${zoneText}\n\n---\n\n${prompt}` }]
+        messages: [{ role: 'user', content: fullPrompt }]
       })
     });
     const d = await r.json();
