@@ -160,6 +160,10 @@ input[type=text]::placeholder{color:var(--ink3)}
 .res-body li{font-size:13.5px;line-height:1.75;color:var(--ink2);margin-bottom:3px}
 .res-body blockquote{background:var(--surface2);border-left:3px solid var(--blue);padding:8px 13px;margin:9px 0;font-size:12px;line-height:1.7;color:#334155;border-radius:0 5px 5px 0}
 .res-body strong{font-weight:500;color:var(--ink)}
+.res-body table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px}
+.res-body th{background:var(--surface2);padding:7px 10px;text-align:left;font-weight:600;border:1px solid var(--border)}
+.res-body td{padding:7px 10px;border:1px solid var(--border);line-height:1.5}
+.res-body tr:nth-child(even) td{background:var(--surface2)}
 .res-body hr{border:none;border-top:1px solid var(--border);margin:14px 0}
 .v-ok{display:inline-block;background:var(--green-bg);color:var(--green-txt);border-radius:6px;padding:2px 9px;font-weight:500;font-size:13px}
 .v-warn{display:inline-block;background:var(--amber-bg);color:var(--amber-txt);border-radius:6px;padding:2px 9px;font-weight:500;font-size:13px}
@@ -549,6 +553,16 @@ function mdParse(s) {
     .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>')
     .replace(/^[\-•] (.+)$/gm,'<li>$1</li>').replace(/^\d+\. (.+)$/gm,'<li>$1</li>');
   h = h.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, m => '<ul>'+m+'</ul>');
+  // Rendu des tableaux markdown
+  h = h.replace(/((?:^\|.+\|\n?)+)/gm, table => {
+    const rows = table.trim().split('\n').filter(r => !/^\|[-:\s|]+\|$/.test(r));
+    if (rows.length < 1) return table;
+    return '<table>' + rows.map((r, i) => {
+      const cells = r.split('|').slice(1,-1).map(c => c.trim());
+      const tag = i === 0 ? 'th' : 'td';
+      return '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
+    }).join('') + '</table>';
+  });
   h = h.split('\n').map(l=>{l=l.trim();if(!l)return'';if(/^<(h[23]|ul|blockquote|hr)/.test(l))return l;return '<p>'+l+'</p>';}).join('\n');
   h = h.replace(/(✅[^\n<]+)/g,'<span class="v-ok">$1</span>').replace(/(⚠️[^\n<]+)/g,'<span class="v-warn">$1</span>').replace(/(❌[^\n<]+)/g,'<span class="v-nok">$1</span>').replace(/(❓[^\n<]+)/g,'<span class="v-unk">$1</span>');
   return h;
