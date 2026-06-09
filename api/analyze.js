@@ -124,7 +124,7 @@ export default async function handler(req, res) {
         if (gr.ok) {
           const gb = Buffer.from(await gr.arrayBuffer());
           const gDoc = await PDFDocument.load(gb, { ignoreEncryption: true });
-          generalB64 = await getPagesBatch(gDoc, 0, gDoc.getPageCount());
+          generalB64 = await getPagesBatch(gDoc, 0, Math.min(80, gDoc.getPageCount()));
           console.log('Dispositions générales chargées:', gDoc.getPageCount(), 'pages');
         }
       } catch(e) { console.log('Dispositions générales non disponibles'); }
