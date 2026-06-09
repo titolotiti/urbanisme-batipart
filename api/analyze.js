@@ -27,7 +27,14 @@ const OPERATIONS = {
 };
 
 const FALLBACK_URLS = {
+  // Plaine Commune : Partie 2 (zones) = 4MB
   '200057867': 'https://plainecommune.fr/fileadmin/user_upload/Portail_Plaine_Commune/LA_DOC/PROJET_DE_TERRITOIRE/PLUI/PLUi_Exutoire/TOME_4-REGLEMENT_ECRIT_ET_GRAPHIQUE/TOME_4-REGLEMENT_ECRIT/4-1-2_Partie_2_Reglements_de-zones/4-1-2-1_Zones_UMD_UMT_UM_UC_UH_UA_UE_UG_UVP_N_A/200057867_4-1-2-1_Reglements_des_zones.pdf',
+};
+
+// Dispositions générales séparées (Partie 1) — combinées avec les zones pour analyse complète
+const GENERAL_URLS = {
+  // Plaine Commune : Partie 1 (dispositions générales + définitions)
+  '200057867': 'https://plainecommune.fr/fileadmin/user_upload/Portail_Plaine_Commune/LA_DOC/PROJET_DE_TERRITOIRE/PLUI/PLUi_Exutoire/TOME_4-REGLEMENT_ECRIT_ET_GRAPHIQUE/TOME_4-REGLEMENT_ECRIT/200057867_4-1-1_Partie1_Definitions_et_dispositions_generales.pdf',
 };
 
 async function getPagesBatch(pdfDoc, from, to) {
@@ -87,10 +94,15 @@ export default async function handler(req, res) {
         const head = await fetch(url, { method: 'HEAD', headers: { 'User-Agent': 'Mozilla/5.0' } });
         const size = parseInt(head.headers.get('content-length') || '0');
         console.log('Taille:', Math.round(size/1024/1024), 'MB');
-        if (size > 30 * 1024 * 1024) {
-          const code = url.match(/DU_(\d+)\//)?.[1];
-          url = (code && FALLBACK_URLS[code]) || url;
-          console.log('Fallback URL utilisée');
+        const code = url.match(/DU_(\d+)\//)?.[1];
+        // Si taille inconnue (0) ou trop grand → fallback
+        if (size === 0 || size > 30 * 1024 * 1024) {
+          if (code && FALLBACK_URLS[code]) {
+            url = FALLBACK_URLS[code];
+            console.log('Fallback URL utilisée');
+          } else if (size === 0) {
+            console.log('Taille inconnue — téléchargement prudent');
+          }
         }
       } catch(e) {}
       const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
@@ -103,6 +115,21 @@ export default async function handler(req, res) {
     const totalPages = pdfDoc.getPageCount();
     console.log('Pages:', totalPages);
 
+    // Charge aussi les dispositions générales si disponibles (même coût — incluses dans appel 1)
+    let generalB64 = null;
+    const urlCode = (pluUrl || '').match(/DU_(\d+)\//)?.[1];
+    if (urlCode && GENERAL_URLS[urlCode]) {
+      try {
+        const gr = await fetch(GENERAL_URLS[urlCode], { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (gr.ok) {
+          const gb = Buffer.from(await gr.arrayBuffer());
+          const gDoc = await PDFDocument.load(gb, { ignoreEncryption: true });
+          generalB64 = await getPagesBatch(gDoc, 0, gDoc.getPageCount());
+          console.log('Dispositions générales chargées:', gDoc.getPageCount(), 'pages');
+        }
+      } catch(e) { console.log('Dispositions générales non disponibles'); }
+    }
+
     // ── APPEL 1 : Pages 1-20 (table des matières + début) ──
     // Haiku cherche la page exacte de la zone ET extrait les dispositions générales
     const toc20 = await getPagesBatch(pdfDoc, 0, 20);
@@ -113,10 +140,17 @@ Si tu ne trouves pas de table des matières, cherche dans le texte visible et in
 
 TÂCHE 2 — Extrait intégralement les dispositions générales, définitions et règles communes à toutes les zones (si présentes dans ces 20 premières pages).`;
 
-    const tocResult = await callHaiku(apiKey, [
-      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: toc20 } },
-      { type: 'text', text: tocPrompt }
-    ]);
+    const tocContent = generalB64
+      ? [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: generalB64 } },
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: toc20 } },
+          { type: 'text', text: tocPrompt }
+        ]
+      : [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: toc20 } },
+          { type: 'text', text: tocPrompt }
+        ];
+    const tocResult = await callHaiku(apiKey, tocContent);
     console.log('TOC result:', tocResult.slice(0, 100));
 
     // Extrait le numéro de page
