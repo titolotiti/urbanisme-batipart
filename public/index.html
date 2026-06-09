@@ -25,22 +25,22 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
 #overlay.on{opacity:1;pointer-events:all}
 
 /* drawer */
-#drawer{position:fixed;top:0;left:0;bottom:0;width:256px;background:#1a1a1a;z-index:50;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);overflow-y:auto;display:flex;flex-direction:column}
+#drawer{position:fixed;top:0;left:0;bottom:0;width:256px;background:var(--surface);border-right:1px solid var(--border);z-index:50;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);overflow-y:auto;display:flex;flex-direction:column;box-shadow:4px 0 24px rgba(0,0,0,.08)}
 #drawer.on{transform:translateX(0)}
-.d-brand{padding:24px 20px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+.d-brand{padding:24px 20px 18px;border-bottom:1px solid var(--surface2)}
 .d-logo{background:#fff;border-radius:7px;padding:7px 11px;display:inline-block}
 .d-logo img{width:108px;height:auto;display:block}
-.d-sub{font-size:11px;color:rgba(255,255,255,.3);margin-top:9px;letter-spacing:.04em}
+.d-sub{font-size:11px;color:var(--ink3);margin-top:9px;letter-spacing:.04em}
 .d-section{padding:18px 12px 4px}
-.d-label{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.25);padding:0 8px;margin-bottom:7px}
+.d-label{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.1em;color:var(--ink3);padding:0 8px;margin-bottom:7px}
 .d-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;transition:background .15s;margin-bottom:2px}
-.d-item:hover:not(.soon){background:rgba(255,255,255,.07)}
+.d-item:hover:not(.soon){background:var(--surface2)}
 .d-item.active{background:rgba(44,74,110,.3)}
 .d-item.active .d-label2{color:#93c5fd}
 .d-item.soon{opacity:.35;cursor:default}
-.d-icon{width:28px;height:28px;background:rgba(255,255,255,.06);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:rgba(255,255,255,.5)}
-.d-label2{font-size:13px;color:rgba(255,255,255,.65)}
-.d-badge{margin-left:auto;background:rgba(255,255,255,.08);color:rgba(255,255,255,.3);font-size:10px;padding:2px 7px;border-radius:99px}
+.d-icon{width:28px;height:28px;background:var(--surface2);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--ink3)}
+.d-label2{font-size:13px;color:var(--ink2)}
+.d-badge{margin-left:auto;background:var(--surface2);color:var(--ink3);font-size:10px;padding:2px 7px;border-radius:99px}
 
 /* topbar */
 .topbar{position:sticky;top:0;z-index:30;background:rgba(247,246,243,.93);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);height:54px;display:flex;align-items:center;padding:0 22px;gap:14px}
@@ -190,10 +190,10 @@ input[type=text]::placeholder{color:var(--ink3)}
 }
 /* History items */
 .hist-item { padding: 8px 10px; border-radius: 7px; cursor: pointer; margin-bottom: 3px; transition: background .15s; }
-.hist-item:hover { background: rgba(255,255,255,.07); }
-.hist-date { font-size: 10px; color: rgba(255,255,255,.3); }
-.hist-addr { font-size: 12px; color: rgba(255,255,255,.65); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hist-zone { font-size: 11px; color: rgba(255,255,255,.4); margin-top: 1px; }
+.hist-item:hover { background: var(--surface2); }
+.hist-date { font-size: 10px; color: var(--ink3); }
+.hist-addr { font-size: 12px; color: var(--ink2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hist-zone { font-size: 11px; color: var(--ink3); margin-top: 1px; }
 </style>
 </head>
 <body>
@@ -233,7 +233,7 @@ input[type=text]::placeholder{color:var(--ink3)}
   <div class="d-section">
     <div class="d-label">Historique</div>
     <div id="historyList" style="padding:0 6px;"></div>
-    <div id="historyEmpty" style="padding:8px 10px;font-size:11.5px;color:rgba(255,255,255,.25)">Aucune recherche</div>
+    <div id="historyEmpty" style="padding:8px 10px;font-size:11.5px;color:var(--ink3)">Aucune recherche</div>
   </div>
 </aside>
 
