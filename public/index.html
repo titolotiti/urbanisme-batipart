@@ -115,8 +115,8 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
 .manual-toggle svg{transition:transform .3s}
 .manual-toggle.on svg{transform:rotate(180deg)}
 .manual-toggle.on{color:var(--blue)}
-.manual-section{display:none;border-top:1px solid var(--bdr);padding-top:16px;margin-top:4px}
-.manual-section.on{display:block;animation:fadeUp .25s ease}
+.manual-section{max-height:0;overflow:hidden;opacity:0;transition:max-height .45s cubic-bezier(.4,0,.2,1),opacity .35s ease,padding .45s;padding-top:0;border-top:1px solid transparent;margin-top:0}
+.manual-section.on{max-height:500px;opacity:1;padding-top:16px;border-top-color:var(--bdr);margin-top:4px}
 
 /* ── STEP 2 — Analyse ── */
 .s2-inner{max-width:1100px;margin:0 auto;padding:24px 40px 80px}
@@ -310,7 +310,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
     <div class="s2-wrap"><div class="s2-inner" style="padding:0">
 
       <div class="s2-hero" id="heroCard">
-        <div class="s2-hero-label">Bien analysé</div>
+        <div class="s2-hero-label">Parcelle analysée</div>
         <div class="s2-hero-addr" id="heroAddr">—</div>
         <div class="s2-hero-zone" id="heroZone">—</div>
         <div class="s2-hero-plu" id="heroPlu"></div>
