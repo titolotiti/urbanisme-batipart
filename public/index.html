@@ -17,7 +17,7 @@
   --amber-bg:#fffbeb;--amber-t:#92400e;
 }
 html,body{height:100%;overflow:hidden}
-body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-weight:300}
+body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-weight:300;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
 
 /* ── ANIMATIONS ── */
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
@@ -461,6 +461,11 @@ function navigate(from, to) {
       toEl.className = 'step active';
     });
   });
+
+  // Clear transform after transition for crisp text rendering
+  setTimeout(() => {
+    document.getElementById('step' + to).style.transform = '';
+  }, 600);
 
   currentStep = to;
 
