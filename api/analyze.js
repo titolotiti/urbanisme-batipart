@@ -124,7 +124,7 @@ export default async function handler(req, res) {
         if (gr.ok) {
           const gb = Buffer.from(await gr.arrayBuffer());
           const gDoc = await PDFDocument.load(gb, { ignoreEncryption: true });
-          generalB64 = await getPagesBatch(gDoc, 0, Math.min(80, gDoc.getPageCount()));
+          generalB64 = await getPagesBatch(gDoc, 0, Math.min(30, gDoc.getPageCount()));
           console.log('Dispositions générales chargées:', gDoc.getPageCount(), 'pages');
         }
       } catch(e) { console.log('Dispositions générales non disponibles'); }
@@ -140,17 +140,11 @@ Si tu ne trouves pas de table des matières, cherche dans le texte visible et in
 
 TÂCHE 2 — Extrait intégralement les dispositions générales, définitions et règles communes à toutes les zones (si présentes dans ces 20 premières pages).`;
 
-    const tocContent = generalB64
-      ? [
-          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: generalB64 } },
-          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: toc20 } },
-          { type: 'text', text: tocPrompt }
-        ]
-      : [
-          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: toc20 } },
-          { type: 'text', text: tocPrompt }
-        ];
-    const tocResult = await callHaiku(apiKey, tocContent);
+    // Appel 1 : TOC seulement (petit, rapide)
+    const tocResult = await callHaiku(apiKey, [
+      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: toc20 } },
+      { type: 'text', text: tocPrompt }
+    ]);
     console.log('TOC result:', tocResult.slice(0, 100));
 
     // Extrait le numéro de page
@@ -162,7 +156,7 @@ TÂCHE 2 — Extrait intégralement les dispositions générales, définitions e
     if (zoneStartPage !== null && zoneStartPage > 20) {
       // ── APPEL 2 : Pages de la zone (±40 pages autour de la zone) ──
       const from = Math.max(0, zoneStartPage - 2);
-      const to = Math.min(totalPages, zoneStartPage + 80);
+      const to = Math.min(totalPages, zoneStartPage + 60);
       console.log(`Zone trouvée page ${zoneStartPage + 1}, scan pages ${from+1}-${to}`);
 
       const zoneB64 = await getPagesBatch(pdfDoc, from, to);
