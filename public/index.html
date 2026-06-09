@@ -149,6 +149,8 @@ input[type=text]::placeholder{color:var(--ink3)}
 .progress-fill{height:100%;background:var(--blue);border-radius:3px;transition:width .5s ease}
 .btn-cancel{background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:500;cursor:pointer;margin-top:8px}
 .btn-cancel:hover{background:#b91c1c}
+.btn-dl{display:flex;align-items:center;gap:6px;padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-weight:500;color:var(--ink2);cursor:pointer;transition:all .15s}
+.btn-dl:hover{background:var(--blue-light);color:var(--blue);border-color:var(--blue)}
 .res{display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-top:14px;box-shadow:var(--shadow)}
 .res.on{display:block}
 .res-top{background:var(--blue);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -614,6 +616,78 @@ async function runAnalysis(type) {
 }
 
 // MARKDOWN
+function downloadNote(type) {
+  const zone = document.getElementById('zone')?.value || '';
+  const address = currentAddress || '';
+  const result = results[type] || '';
+  const opLabels = {destination:'Changement de destination',surelevation:'Surélévation',extension:'Extension'};
+  const date = new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Note de synthèse PLU — ${zone} — ${address}</title>
+<style>
+  body{font-family:'Segoe UI',Arial,sans-serif;max-width:780px;margin:40px auto;color:#1a1a1a;font-size:14px;line-height:1.7;padding:0 24px}
+  .header{border-bottom:2px solid #2C4A6E;padding-bottom:16px;margin-bottom:24px}
+  .header h1{font-size:20px;color:#2C4A6E;margin:0 0 4px}
+  .header .meta{font-size:12px;color:#666}
+  h2{font-size:15px;font-weight:600;color:#1a1a1a;margin:20px 0 8px;padding-left:10px;border-left:3px solid #2C4A6E}
+  blockquote{background:#f5f5f3;border-left:3px solid #2C4A6E;padding:8px 14px;margin:10px 0;font-size:13px;color:#444;border-radius:0 5px 5px 0}
+  p{margin:0 0 8px}
+  strong{font-weight:600}
+  table{width:100%;border-collapse:collapse;margin:12px 0}
+  th{background:#2C4A6E;color:#fff;padding:8px 12px;text-align:left;font-size:13px}
+  td{padding:7px 12px;border:1px solid #ddd;font-size:13px}
+  tr:nth-child(even) td{background:#f9f8f6}
+  .footer{margin-top:40px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#999}
+  @media print{body{margin:20px}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Note de synthèse — Analyse PLU</h1>
+  <div class="meta">
+    <strong>Adresse :</strong> ${address} &nbsp;|&nbsp;
+    <strong>Zone :</strong> ${zone} &nbsp;|&nbsp;
+    <strong>Opération :</strong> ${opLabels[type] || type}<br>
+    <strong>Date :</strong> ${date}
+  </div>
+</div>
+${mdToHtml(result)}
+<div class="footer">Document généré par l'outil Analyseur PLU — Batipart · Analyse basée sur le règlement écrit. Pour un dépôt de permis, faire vérifier les plans graphiques par un architecte.</div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'note-synthese-PLU-' + zone + '-' + date.replace(/ /g,'-') + '.html';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function mdToHtml(s) {
+  return s
+    .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>')
+    .replace(/^- (.+)$/gm,'<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g,m=>'<ul>'+m+'</ul>')
+    .replace(/((?:^\|.+\|\n?)+)/gm, table => {
+      const rows = table.trim().split('\n').filter(r => !/^\|[-:\s|]+\|$/.test(r));
+      return '<table>' + rows.map((r,i) => {
+        const cells = r.split('|').slice(1,-1).map(c=>c.trim());
+        const tag = i===0?'th':'td';
+        return '<tr>'+cells.map(c=>`<${tag}>${c}</${tag}>`).join('')+'</tr>';
+      }).join('') + '</table>';
+    })
+    .replace(/\n/g,'<br>');
+}
+
 function mdParse(s) {
   let h = s
     .replace(/^---$/gm,'<hr>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^### (.+)$/gm,'<h3>$1</h3>')
