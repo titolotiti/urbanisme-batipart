@@ -132,9 +132,16 @@ TÂCHE 2 — Extrait intégralement les dispositions générales, définitions e
       console.log(`Zone trouvée page ${zoneStartPage + 1}, scan pages ${from+1}-${to}`);
 
       const zoneB64 = await getPagesBatch(pdfDoc, from, to);
-      const zonePrompt = `Extrait INTÉGRALEMENT tous les articles de la zone "${zone}" et "${baseZone}" présents dans ce fragment.
-Inclus : destinations autorisées/interdites, hauteur, emprise, reculs, stationnement, logements sociaux, mixité.
-Copie le texte exact avec numéros d'articles et pages.`;
+      const zonePrompt = `Ce document est une section d'un règlement PLU concernant la zone "${zone}" (${baseZone}).
+Extrait INTÉGRALEMENT et mot pour mot TOUS les articles présents, notamment :
+- Art. 1 ou ${baseZone} 1 : Destinations et usages autorisés/interdits/conditionnels
+- Art. 2 : Mixité fonctionnelle, maintien d activités  
+- Art. 3 ou ${baseZone} 3 : Implantation, reculs, gabarits, hauteurs
+- Art. 4 : Aspect extérieur, architecture
+- Art. 5 : Stationnement
+- Art. 6 : Espaces verts, pleine terre
+- Dispositions générales applicables à cette zone
+Copie chaque article EN ENTIER avec son titre, numéro et contenu complet.`;
 
       const zoneExtract = await callHaiku(apiKey, [
         { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: zoneB64 } },
