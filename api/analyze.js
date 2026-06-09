@@ -21,7 +21,10 @@ Explication 2-3 phrases.
 **[Condition]** — Ce que ça implique.
 > *Page XX — Article YY :* "Passage exact."
 
-Texte EXACT entre guillemets. Toujours indiquer page et article.`;
+Texte EXACT entre guillemets. Toujours indiquer page et article.
+
+À la toute fin, ajoute une seule ligne :
+> 📋 *Note : cette analyse porte sur le règlement écrit. Les plans graphiques (surcharges, emplacements réservés, protections) doivent être vérifiés séparément.*`;
 
 const OPERATIONS = {
   destination: "Changement de destination — bureaux → logements, bâtiment existant",
