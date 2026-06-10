@@ -40,11 +40,7 @@ export default async function handler(req, res) {
         const timeout = setTimeout(() => controller.abort(), 4000);
         const r = await fetch(url, { method: 'HEAD', headers: H, signal: controller.signal });
         clearTimeout(timeout);
-        if (!r.ok) return null;
-        const ct = r.headers.get('content-type') || '';
-        // Vérifie que c'est bien un PDF et pas une page d'erreur HTML
-        if (ct.includes('html')) return null;
-        return url;
+        return r.ok ? url : null;
       } catch(e) { return null; }
     }
 
@@ -117,17 +113,42 @@ export default async function handler(req, res) {
       );
       const dD = await dR.json();
       if (dD.features?.length) {
-        const props = dD.features[0].properties;
-        partition = props.name || props.partition || null;
-        console.log('APICarto doc props:', JSON.stringify(props));
-        const urls = await buildUrlsFromDocProps(props);
+        // Traite TOUS les features — APICarto peut retourner plusieurs documents
+        for (const feat of dD.features) {
+          const props = feat.properties;
+          const nm = (props.name || '').toLowerCase();
+
+          // Plan graphique → extrait directement depuis le nom du document
+          if (nm.includes('graphique') || nm.includes('zonage')) {
+            const h = props.id || props.gpu_doc_id;
+            const cg = props.grid_name || props.name?.match(/^(\d+)_/)?.[1];
+            const dt = props.name?.match(/(\d{8})$/)?.[1];
+            if (h && cg && dt) {
+              const planUrl = `https://data.geopf.fr/annexes/gpu/documents/DU_${cg}/${h}/${props.name}.pdf`;
+              const n = props.name?.match(/graphique_(\d+)/)?.[1] || planUrls.length + 1;
+              planUrls.push({ nom: `Plan graphique ${n}`, url: planUrl });
+            }
+            continue;
+          }
+        }
+
+        // Règlement : prend le premier feature non-graphique
+        const mainProps = dD.features.find(f => {
+          const nm = (f.properties?.name || '').toLowerCase();
+          return !nm.includes('graphique') && !nm.includes('zonage');
+        })?.properties || dD.features[0].properties;
+
+        partition = mainProps.name || mainProps.partition || null;
+        console.log('APICarto doc props:', JSON.stringify(mainProps));
+        const urls = await buildUrlsFromDocProps(mainProps);
         if (urls.pluUrl) {
           pluUrl = urls.pluUrl;
           pluName = urls.pluName;
           zonageUrl = urls.zonageUrl;
-          planUrls = urls.planUrls || [];
+          // Fusionne les plans trouvés dans features + ceux de buildUrlsFromDocProps
+          if (planUrls.length === 0) planUrls = urls.planUrls || [];
 
-          console.log('✓ Source: APICarto →', pluUrl);
+          console.log('✓ Source: APICarto →', pluUrl, '| Plans:', planUrls.length);
         }
       }
     } catch(e) { console.log('APICarto doc err:', e.message); }
