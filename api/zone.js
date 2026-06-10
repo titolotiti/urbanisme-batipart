@@ -40,12 +40,12 @@ export default async function handler(req, res) {
         const url = `${base}/${codgeo}_reglement_graphique_${n}_${date}.pdf`;
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 5000);
+          const timeout = setTimeout(() => controller.abort(), 2000);
           const r = await fetch(url, { method: 'HEAD', headers: H, signal: controller.signal });
           clearTimeout(timeout);
           const ct = r.headers.get('content-type') || 'none';
           console.log(`Plan ${n}: status=${r.status} ct=${ct} url=${url}`);
-          return r.ok ? { nom: `Plan graphique ${n}`, url } : null;
+          return r.ok ? { nom: `Plan graphique ${n} — PLUi ${props.grid_title || codgeo}`, url } : null;
         } catch(e) {
           console.log(`Plan ${n}: ERREUR ${e.message}`);
           return null;
@@ -291,9 +291,9 @@ export default async function handler(req, res) {
             const url = `${base2}/${cg}_reglement_graphique_${n}_${date2}.pdf`;
             try {
               const controller = new AbortController();
-              setTimeout(() => controller.abort(), 5000);
+              setTimeout(() => controller.abort(), 2000);
               const r = await fetch(url, { method: 'HEAD', headers: H, signal: controller.signal });
-              return r.ok ? { nom: `Plan graphique ${n}`, url } : null;
+              return r.ok ? { nom: `Plan graphique ${n} — PLUi ${props.grid_title || codgeo}`, url } : null;
             } catch(e) { return null; }
           })
         );
