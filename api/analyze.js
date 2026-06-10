@@ -115,7 +115,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { zone, analysisType, pluUrl, pluBase64, commune, address, zonageUrl } = req.body;
+  const { zone, analysisType, pluUrl, pluBase64, commune, address, zonageUrl, planUrls } = req.body;
   console.log('Params:', { zone, commune, address: address?.slice(0, 40) });
 
   if (!zone || !analysisType || (!pluUrl && !pluBase64)) return res.status(400).json({ error: 'Paramètres manquants' });
@@ -123,7 +123,10 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'Clé API non configurée' });
 
   const communeInfo = commune ? `\nCommune : ${commune}${address ? ' — ' + address : ''}` : '';
-  const planInfo = zonageUrl ? `\nPlan graphique téléchargeable : ${zonageUrl}` : '';
+  const plansInfo = (planUrls && planUrls.length)
+    ? '\nPlans graphiques disponibles :\n' + planUrls.map(p => `- Plan ${p.n} : ${p.url}`).join('\n')
+    : (zonageUrl ? `\nPlan graphique téléchargeable : ${zonageUrl}` : '');
+  const planInfo = plansInfo;
   const prompt = PROMPT
     .replace('{ZONE}', zone)
     .replace('{COMMUNE}', communeInfo + planInfo)
