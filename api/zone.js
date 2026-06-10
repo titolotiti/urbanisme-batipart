@@ -32,9 +32,22 @@ export default async function handler(req, res) {
     const date = name?.match(/(\d{8})$/)?.[1];
     if (!hash || !codgeo || !date) return {};
     const base = `https://data.geopf.fr/annexes/gpu/documents/DU_${codgeo}/${hash}`;
+    // Vérifie quels plans graphiques existent (1 à 8) en parallèle
+    const planChecks = await Promise.all(
+      Array.from({length: 8}, (_, i) => i + 1).map(async n => {
+        const url = `${base}/${codgeo}_reglement_graphique_${n}_${date}.pdf`;
+        try {
+          const r = await fetch(url, { method: 'HEAD' });
+          return r.ok ? { n, url } : null;
+        } catch(e) { return null; }
+      })
+    );
+    const planUrls = planChecks.filter(Boolean);
+
     return {
       pluUrl: `${base}/${codgeo}_reglement_${date}.pdf`,
-      zonageUrl: `${base}/${codgeo}_reglement_graphique_1_${date}.pdf`,
+      zonageUrl: planUrls[0]?.url || `${base}/${codgeo}_reglement_graphique_1_${date}.pdf`,
+      planUrls, // tous les plans disponibles [{n:1,url:...}, {n:2,url:...}...]
       pluName: `${props.du_type || 'PLU'} ${props.grid_title || ''}` + fmtDate(`${base}/${codgeo}_reglement_${date}.pdf`),
     };
   }
@@ -252,7 +265,7 @@ export default async function handler(req, res) {
       success: true, address: label,
       coordinates: { lat, lon },
       citycode, zone, partition,
-      pluUrl, pluName, zonageUrl,
+      pluUrl, pluName, zonageUrl, planUrls: planUrls || [],
       ppri
     });
 
