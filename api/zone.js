@@ -24,6 +24,7 @@ async function fetchGpuFiles(hash) {
     clearTimeout(t);
     if (!r.ok) { console.log('GPU files API status:', r.status); return null; }
     const d = await r.json();
+    if (Array.isArray(d) && d.length) console.log('GPU files sample:', JSON.stringify(d.slice(0, 3)));
     return Array.isArray(d) && d.length ? d : null;
   } catch (e) { console.log('GPU files API err:', e.message); return null; }
 }
@@ -37,6 +38,12 @@ function plansFromGpuFiles(files, base) {
     let title = (f.title || '').trim();
     if (!title || /\.pdf$/i.test(title)) title = (f.path || '').trim(); // fallback sur le répertoire
     if (!title || /\.pdf$/i.test(title)) title = '';
+    // Fallback : partie descriptive du nom de fichier
+    // ex: "200057867_reglement_graphique_zonage_Saint-Denis_20251216.pdf" → "zonage Saint-Denis"
+    if (!title) {
+      const mid = f.name.replace(/^\d+_(reglement_)?graphique_?/i, '').replace(/_?\d{8}\.pdf$/i, '').replace(/\.pdf$/i, '').replace(/^\d+_?/, '').replace(/_/g, ' ').trim();
+      if (mid && !/^\d*$/.test(mid)) title = mid;
+    }
     const nom = title
       ? (n ? `Plan ${n} — ${title.slice(0, 90)}` : title.slice(0, 90))
       : `Plan graphique ${n || ''}`.trim();
@@ -44,6 +51,50 @@ function plansFromGpuFiles(files, base) {
   });
   result.sort((a, b) => a.n - b.n);
   return result.map(({ nom, url }) => ({ nom, url }));
+}
+
+// ═══════════════════════════════════════════════════
+// Filtrage par commune (PLUi) — universel
+// API GPU grid/{code}/children → liste officielle des communes du territoire
+// On garde : plans de la commune de l'adresse + plans sans commune (thématiques)
+// ═══════════════════════════════════════════════════
+function normName(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[-_']/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+async function fetchTerritoryCommunes(codgeo) {
+  if (!codgeo || codgeo.length <= 5) return null; // PLU communal → pas de filtrage
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 5000);
+    const r = await fetch(`https://www.geoportail-urbanisme.gouv.fr/api/grid/${codgeo}/children`, {
+      headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+      signal: controller.signal
+    });
+    clearTimeout(t);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return Array.isArray(d) ? d.map(g => g.title).filter(Boolean) : null;
+  } catch (e) { console.log('GPU children err:', e.message); return null; }
+}
+
+function filterPlansByCommune(plans, communeName, allCommunes) {
+  if (!communeName || !plans?.length || !allCommunes?.length) return plans;
+  const cur = normName(communeName);
+  if (!cur) return plans;
+  const others = allCommunes.map(normName).filter(c => c && c !== cur);
+  const mentionsCur = p => {
+    const nn = normName(p.nom);
+    if (!nn.includes(cur)) return false;
+    // Évite "Saint-Denis" qui matcherait "L'Île-Saint-Denis"
+    return !others.some(o => o.includes(cur) && nn.includes(o));
+  };
+  const mentionsOther = p => { const nn = normName(p.nom); return others.some(o => nn.includes(o)); };
+  // Si aucun plan ne mentionne la commune → les noms ne contiennent pas l'info, on garde tout
+  if (!plans.some(mentionsCur)) return plans;
+  const filtered = plans.filter(p => mentionsCur(p) || !mentionsOther(p));
+  console.log(`Filtrage commune "${communeName}": ${plans.length} → ${filtered.length} plans`);
+  return filtered;
 }
 
 function pickTitle(text) {
@@ -181,6 +232,7 @@ export default async function handler(req, res) {
     const feat = geoD.features[0];
     const [lon, lat] = feat.geometry.coordinates;
     const label = feat.properties.label;
+    const city = feat.properties.city || '';
     let citycode = feat.properties.citycode;
     if (citycode.startsWith('751')) citycode = '75056';
     if (citycode.startsWith('692')) citycode = '69123';
@@ -424,9 +476,25 @@ export default async function handler(req, res) {
       }
     }
 
-    // ── Labellisation pdf-parse : SEULEMENT pour les plans restés sans titre officiel ──
-    const unnamed = planUrls.filter(p => /^Plan graphique\b/.test(p.nom || ''));
+    // ── Filtrage par commune (PLUi) : ne garder que les plans de la commune
+    //    de l'adresse + les plans thématiques (sans commune dans le nom) ──
+    const duCode = (pluUrl || '').match(/DU_(\d+)\//)?.[1];
+    let territoryCommunes = null;
+    if (planUrls.length > 1 && duCode) {
+      territoryCommunes = await fetchTerritoryCommunes(duCode);
+      if (territoryCommunes?.length) planUrls = filterPlansByCommune(planUrls, city, territoryCommunes);
+    }
+
+    // ── Labellisation pdf-parse : SEULEMENT pour les plans restés sans titre
+    //    officiel, max 12 pour ne pas exploser le timeout ──
+    const unnamed = planUrls.filter(p => /^Plan graphique\b/.test(p.nom || '')).slice(0, 12);
     if (unnamed.length) await labelPlans(unnamed, H);
+
+    // ── Re-filtrage après labellisation (les titres extraits des PDF peuvent
+    //    contenir le nom de la commune) ──
+    if (unnamed.length && territoryCommunes?.length) {
+      planUrls = filterPlansByCommune(planUrls, city, territoryCommunes);
+    }
 
     // ── PPRI : vérification zone inondable via Géorisques ──
     let ppri = null;
