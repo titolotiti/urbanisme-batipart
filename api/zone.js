@@ -32,13 +32,32 @@ export default async function handler(req, res) {
     const date = name?.match(/(\d{8})$/)?.[1];
     if (!hash || !codgeo || !date) return {};
     const base = `https://data.geopf.fr/annexes/gpu/documents/DU_${codgeo}/${hash}`;
-    // Lien vers la page du PLU sur le Géoportail de l'Urbanisme (tous les plans disponibles)
-    const gpuPortalUrl = `https://www.geoportail-urbanisme.gouv.fr/?tab=du&partition=DU_${codgeo}`;
+    // Flux ATOM officiel GPU — seule source garantissant des URLs valides
+    let planUrls = [];
+    try {
+      const atomR = await fetch(
+        `https://www.geoportail-urbanisme.gouv.fr/atom/download-feed/DU_${codgeo}`,
+        { headers: H }
+      );
+      if (atomR.ok) {
+        const xml = await atomR.text();
+        // Parse les entrées du flux ATOM
+        const entries = [...xml.matchAll(/<entry>[\s\S]*?<\/entry>/g)];
+        for (const entry of entries) {
+          const title = entry[0].match(/<title[^>]*>([^<]+)<\/title>/)?.[1] || '';
+          const href = entry[0].match(/<link[^>]+href="([^"]+\.pdf)"[^>]*\/>/)?.[1]
+                    || entry[0].match(/<id>([^<]+\.pdf)<\/id>/)?.[1];
+          if (href && (title.toLowerCase().includes('graphique') || title.toLowerCase().includes('plan') || title.toLowerCase().includes('zonage'))) {
+            planUrls.push({ nom: title.trim(), url: href });
+          }
+        }
+      }
+    } catch(e) { console.log('Plans ATOM err:', e.message); }
 
     return {
       pluUrl: `${base}/${codgeo}_reglement_${date}.pdf`,
-      zonageUrl: gpuPortalUrl,
-      planUrls: [],
+      zonageUrl: planUrls[0]?.url || null,
+      planUrls,
       pluName: `${props.du_type || 'PLU'} ${props.grid_title || ''}` + fmtDate(`${base}/${codgeo}_reglement_${date}.pdf`),
     };
   }
@@ -83,7 +102,7 @@ export default async function handler(req, res) {
     }
 
     // ─── 3. Document PLU ───
-    let pluUrl = null, pluName = null, zonageUrl = null, partition = null;
+    let pluUrl = null, pluName = null, zonageUrl = null, partition = null, planUrls = [];
 
     // SOURCE A : APICarto document (primary)
     // Retourne id (hash), name (partition+date), grid_name (codgeo)
@@ -102,6 +121,7 @@ export default async function handler(req, res) {
           pluUrl = urls.pluUrl;
           pluName = urls.pluName;
           zonageUrl = urls.zonageUrl;
+          planUrls = urls.planUrls || [];
 
           console.log('✓ Source: APICarto →', pluUrl);
         }
@@ -257,7 +277,7 @@ export default async function handler(req, res) {
       success: true, address: label,
       coordinates: { lat, lon },
       citycode, zone, partition,
-      pluUrl, pluName, zonageUrl,
+      pluUrl, pluName, zonageUrl, planUrls,
       ppri
     });
 
