@@ -279,6 +279,29 @@ export default async function handler(req, res) {
       if (entry) { [pluUrl, pluName] = entry; console.log('✓ DB fallback:', citycode); }
     }
 
+    // ── Détection plans graphiques si pas encore trouvés (fallback DB/WFS) ──
+    if (planUrls.length === 0 && pluUrl) {
+      const urlMatch = pluUrl.match(/DU_([^/]+)\/([^/]+)\/([^/]+)_(\d{8})\.pdf/);
+      if (urlMatch) {
+        const [, du, hash, , date2] = urlMatch;
+        const cg = du;
+        const base2 = `https://data.geopf.fr/annexes/gpu/documents/DU_${cg}/${hash}`;
+        const checks = await Promise.all(
+          Array.from({length: 10}, (_, i) => i + 1).map(async n => {
+            const url = `${base2}/${cg}_reglement_graphique_${n}_${date2}.pdf`;
+            try {
+              const controller = new AbortController();
+              setTimeout(() => controller.abort(), 5000);
+              const r = await fetch(url, { method: 'HEAD', headers: H, signal: controller.signal });
+              return r.ok ? { nom: `Plan graphique ${n}`, url } : null;
+            } catch(e) { return null; }
+          })
+        );
+        planUrls = checks.filter(Boolean);
+        console.log('Plans (fallback détection):', planUrls.length);
+      }
+    }
+
     // ── PPRI : vérification zone inondable via Géorisques ──
     let ppri = null;
     if (lat && lon) {
