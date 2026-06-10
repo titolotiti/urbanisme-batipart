@@ -92,7 +92,7 @@ export default async function handler(req, res) {
     }
 
     // ─── 3. Document PLU ───
-    let pluUrl = null, pluName = null, zonageUrl = null, partition = null;
+    let pluUrl = null, pluName = null, zonageUrl = null, partition = null, planUrls = [];
 
     // SOURCE A : APICarto document (primary)
     // Retourne id (hash), name (partition+date), grid_name (codgeo)
@@ -111,6 +111,7 @@ export default async function handler(req, res) {
           pluUrl = urls.pluUrl;
           pluName = urls.pluName;
           zonageUrl = urls.zonageUrl;
+          planUrls = urls.planUrls || [];
           console.log('✓ Source: APICarto →', pluUrl);
         }
       }
@@ -265,7 +266,7 @@ export default async function handler(req, res) {
       success: true, address: label,
       coordinates: { lat, lon },
       citycode, zone, partition,
-      pluUrl, pluName, zonageUrl, planUrls: planUrls || [],
+      pluUrl, pluName, zonageUrl, planUrls,
       ppri
     });
 
