@@ -187,24 +187,41 @@ export default async function handler(req, res) {
     function extractZoneSection(text, z, base) {
       try {
         const zE = escRe(z), bE = escRe(base);
+        // 1. Collecte TOUTES les positions candidates (pas seulement la première,
+        //    qui est presque toujours dans le sommaire des gros règlements PLUi)
         const patterns = [
-          new RegExp('ZONE\\s+' + zE + '\\b', 'i'),
-          new RegExp('ZONE\\s+' + bE + '\\b', 'i'),
-          new RegExp('Article\\s+' + bE + '\\s+1\\b', 'i'),
-          new RegExp('^' + bE + '\\s*[-–—:]', 'im'),
+          new RegExp('ZONE\\s+' + zE + '\\b', 'gi'),
+          new RegExp('ZONE\\s+' + bE + '\\b', 'gi'),
+          new RegExp('Article\\s+' + bE + '[\\s.\\-]*1\\b', 'gi'),
+          new RegExp('^' + bE + '\\s*[-–—:]', 'gim'),
         ];
-        let start = -1;
+        const candidates = new Set();
         for (const p of patterns) {
-          try { const m = text.search(p); if (m > -1 && (start === -1 || m < start)) start = m; } catch(e) {}
+          let m, guard = 0;
+          while ((m = p.exec(text)) !== null && guard++ < 80) candidates.add(m.index);
         }
-        if (start === -1) return null;
-        start = Math.max(0, start - 300);
-        try {
-          const after = text.slice(start + 500);
-          const endM = after.search(new RegExp('\\n(ZONE\\s+[A-Z][A-Z0-9-]+)', 'i'));
-          const end = endM > -1 ? start + 500 + endM : Math.min(start + 80000, text.length);
-          return text.slice(start, end);
-        } catch(e) { return text.slice(start, Math.min(start + 80000, text.length)); }
+        if (!candidates.size) return null;
+        // 2. Score chaque candidat : densité de contenu réglementaire dans les
+        //    4000 chars suivants. Le sommaire score bas, le corps du texte score haut.
+        let best = -1, bestScore = -1;
+        for (const pos of candidates) {
+          const w = text.slice(pos, pos + 4000);
+          const score = (w.match(/article|chapitre|destination|interdit|autoris|hauteur|emprise|implantation|stationnement|pleine terre|recul/gi) || []).length;
+          if (score > bestScore) { bestScore = score; best = pos; }
+        }
+        const start = Math.max(0, best - 300);
+        // 3. Fin de section : prochaine ZONE DIFFÉRENTE (ignore les en-têtes de page
+        //    qui répètent la zone courante)
+        let end = Math.min(start + 80000, text.length);
+        const reEnd = new RegExp('\\n\\s*ZONE\\s+([A-Z][A-Z0-9]*[a-z]*)\\b', 'g');
+        reEnd.lastIndex = start + 500;
+        let mm;
+        while ((mm = reEnd.exec(text)) !== null && mm.index < end) {
+          const lbl = mm[1].toUpperCase();
+          if (lbl !== z.toUpperCase() && lbl !== base.toUpperCase()) { end = mm.index; break; }
+        }
+        console.log('Zone section: start=' + start + ' end=' + end + ' score=' + bestScore);
+        return text.slice(start, end);
       } catch(e) { return null; }
     }
 
