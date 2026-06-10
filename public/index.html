@@ -577,9 +577,13 @@ async function findZone() {
         html += ' &nbsp;<button onclick="togglePlans()" style="background:none;border:none;color:var(--blue);font-size:12px;cursor:pointer;padding:0">↗ Plans graphiques (' + planUrls.length + ')</button>';
         html += '<div id="plansList" style="display:none;margin-top:8px;background:var(--s2);border-radius:8px;padding:8px 12px;border:1px solid var(--bdr)">';
         planUrls.forEach(p => {
-          html += '<div style="margin-bottom:4px"><a href="' + p.url + '" target="_blank" style="color:var(--blue);font-size:12px;display:flex;align-items:center;gap:5px">↗ ' + p.nom + '</a></div>';
+          html += '<div style="margin-bottom:4px"><a href="' + p.url + '" target="_blank" style="color:var(--blue);font-size:12px">↗ ' + p.nom + '</a></div>';
         });
         html += '</div>';
+      } else if (d.citycode) {
+        // Pas de plans PDF → lien vers la visionneuse cartographique GPU
+        const viewerUrl = 'https://www.geoportail-urbanisme.gouv.fr/map/#zoom=15&lon=' + (d.coordinates?.lon||2.35) + '&lat=' + (d.coordinates?.lat||48.85);
+        html += ' &nbsp;<a href="' + viewerUrl + '" target="_blank" style="color:var(--blue);font-size:12px" title="Voir le plan de zonage interactif">🗺 Visionneuse PLU</a>';
       }
       po.innerHTML = html;
       po.style.display = 'block';
