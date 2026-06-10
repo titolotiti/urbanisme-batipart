@@ -6,7 +6,7 @@ const PROMPT = `Tu es un expert en droit de l'urbanisme français.
 Voici les extraits du règlement PLU pour la zone {ZONE}{COMMUNE}.
 Analyse pour l'opération : {OPERATION}
 
-IMPORTANT : Si le règlement couvre plusieurs communes, applique UNIQUEMENT les règles de la commune indiquée.
+IMPORTANT : Dans un PLUi, les règles sont définies par zone (pas par commune) — elles s'appliquent identiquement à toute parcelle de cette zone, quelle que soit la commune. Analyse les règles de la zone indiquée sans filtrer par commune.
 Si tu mentionnes un plan graphique, un plan de zonage ou un document cartographique, inclus TOUJOURS le lien de téléchargement fourni ci-dessus directement dans ta réponse sous la forme : [↗ Télécharger le plan graphique]({URL})
 
 ## ① Faisabilité
@@ -26,10 +26,8 @@ Texte EXACT entre guillemets. Toujours indiquer page et article.
 
 IMPORTANT : Ne commence pas par un avertissement préalable. Lance-toi directement dans l'analyse.
 À la toute fin seulement, ajoute cette ligne unique :
-> 📋 *Analyse basée sur le règlement écrit — suffisant pour évaluer la faisabilité. Pour un dépôt de permis, faire vérifier les plans graphiques par un architecte.*
 
 À la toute fin, ajoute une seule ligne :
-> 📋 *Note : cette analyse porte sur le règlement écrit. Les plans graphiques (surcharges, emplacements réservés, protections) doivent être vérifiés séparément.*`;
 
 const OPERATIONS = {
   destination: "Changement de destination — bureaux → logements, bâtiment existant",
