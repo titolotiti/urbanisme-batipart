@@ -1,3 +1,56 @@
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse/lib/pdf-parse.js');
+
+// ═══════════════════════════════════════════════════
+// Labellisation des plans graphiques — UNIVERSEL (tous PLU/PLUi)
+// Lit la 1ère page de chaque plan PDF et extrait le titre réel
+// (ex: "6.13 Plan mixité sociale") au lieu de "Plan graphique N"
+// ═══════════════════════════════════════════════════
+function pickTitle(text) {
+  const lines = (text || '').split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(l => l.length >= 4);
+  const head = lines.slice(0, 12);
+  const isNoise = l => /dossier d.approbation|conseil de territoire|approuv[ée]|enqu[êe]te publique|^\d{1,2}\/\d{1,2}\/\d{2,4}$|^page \d/i.test(l);
+  // 1. Ligne numérotée type "6.13 Plan mixité sociale" ou "6.3.d Secteur de plan masse"
+  let t = head.find(l => !isNoise(l) && /^\d+(\.\d+)*(\.[a-z])?\s*[-–—:.]?\s+\D/.test(l) && l.length <= 120);
+  // 2. Ligne avec mot-clé urbanisme
+  if (!t) t = head.find(l => !isNoise(l) && /\b(plan|zonage|mixit|emplacement|hauteur|secteur|patrimoine|risque|servitude|stationnement|espace|prescription|lin[ée]aire)\w*/i.test(l) && l.length >= 8 && l.length <= 120);
+  // 3. Première ligne raisonnable
+  if (!t) t = head.find(l => !isNoise(l) && l.length >= 10 && l.length <= 120);
+  return t ? t.slice(0, 90) : null;
+}
+
+async function fetchPlanTitle(url, headers) {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const r = await fetch(url, { headers, signal: controller.signal });
+    clearTimeout(timeout);
+    if (!r.ok) return null;
+    const size = parseInt(r.headers.get('content-length') || '0');
+    if (size > 15 * 1024 * 1024) return null; // trop lourd → on garde le nom générique
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > 15 * 1024 * 1024) return null;
+    const data = await pdfParse(buf, { max: 1 }); // 1ère page seulement
+    return pickTitle(data.text);
+  } catch (e) { return null; }
+}
+
+async function labelPlans(plans, headers) {
+  if (!plans?.length) return;
+  // Par lots de 2 + pause 250ms pour ne pas se faire couper par le serveur IGN
+  for (let i = 0; i < plans.length; i += 2) {
+    const batch = plans.slice(i, i + 2);
+    await Promise.all(batch.map(async p => {
+      const title = await fetchPlanTitle(p.url, headers);
+      const n = p.url.match(/graphique_(\d+)_/)?.[1];
+      if (title) p.nom = (n ? `Plan ${n} — ` : '') + title;
+      console.log(`Label plan ${n || '?'}: ${title || '(titre non extractable, nom générique conservé)'}`);
+    }));
+    if (i + 2 < plans.length) await new Promise(r => setTimeout(r, 250));
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -285,21 +338,28 @@ export default async function handler(req, res) {
         const [, du, hash, , date2] = urlMatch;
         const cg = du;
         const base2 = `https://data.geopf.fr/annexes/gpu/documents/DU_${cg}/${hash}`;
-        const checks = await Promise.all(
-          Array.from({length: 10}, (_, i) => i + 1).map(async n => {
+        // Par lots de 3 + pause 300ms (même protection rate limiting que la source principale)
+        for (let batch = 0; batch < 4; batch++) {
+          const ns = [batch*3+1, batch*3+2, batch*3+3].filter(n => n <= 10);
+          const batchResults = await Promise.all(ns.map(async n => {
             const url = `${base2}/${cg}_reglement_graphique_${n}_${date2}.pdf`;
             try {
               const controller = new AbortController();
-              setTimeout(() => controller.abort(), 2000);
+              const timeout = setTimeout(() => controller.abort(), 5000);
               const r = await fetch(url, { method: 'HEAD', headers: H, signal: controller.signal });
-              return r.ok ? { nom: `Plan graphique ${n} — ${props.grid_title || codgeo}`, url } : null;
+              clearTimeout(timeout);
+              return r.ok ? { nom: `Plan graphique ${n}`, url } : null;
             } catch(e) { return null; }
-          })
-        );
-        planUrls = checks.filter(Boolean);
+          }));
+          planUrls.push(...batchResults.filter(Boolean));
+          if (batch < 3) await new Promise(r => setTimeout(r, 300));
+        }
         console.log('Plans (fallback détection):', planUrls.length);
       }
     }
+
+    // ── Labellisation des plans : extrait le titre réel depuis chaque PDF ──
+    await labelPlans(planUrls, H);
 
     // ── PPRI : vérification zone inondable via Géorisques ──
     let ppri = null;
