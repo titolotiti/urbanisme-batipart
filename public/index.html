@@ -422,7 +422,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
 
 <script>
 // STATE
-let pluUrl = null, pluBase64 = null, zonageUrl = null, planUrls = [], currentAddress = '', currentCity = '';
+let pluUrl = null, pluBase64 = null, zonageUrl = null, currentAddress = '', currentCity = '';
 const results = {};
 let currentStep = 0;
 
@@ -564,13 +564,10 @@ async function findZone() {
     if (d.pluUrl) {
       pluUrl = d.pluUrl;
       zonageUrl = d.zonageUrl || null;
-      planUrls = d.planUrls || [];
       const po = document.getElementById('pluOk');
       let html = '📄 <strong style="color:var(--ink2)">' + (d.pluName||'Règlement PLU') + '</strong>';
       html += ' &nbsp;<a href="' + d.pluUrl + '" target="_blank" style="color:var(--blue);font-size:12px">↗ Règlement</a>';
-      planUrls.forEach(p => {
-        html += ' &nbsp;<a href="' + p.url + '" target="_blank" style="color:var(--blue);font-size:12px">↗ Plan ' + p.n + '</a>';
-      });
+      if (d.zonageUrl) html += ' &nbsp;<a href="' + d.zonageUrl + '" target="_blank" style="color:var(--blue);font-size:12px">↗ Plans graphiques</a>';
       po.innerHTML = html;
       po.style.display = 'block';
     }
@@ -645,7 +642,7 @@ async function runAnalysis(type) {
   try {
     const r = await fetch('/api/analyze', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({zone, analysisType: type, pluUrl, pluBase64, commune: currentCity, address: currentAddress, zonageUrl, planUrls}),
+      body: JSON.stringify({zone, analysisType: type, pluUrl, pluBase64, commune: currentCity, address: currentAddress, zonageUrl}),
       signal: controller.signal
     });
     clearInterval(progressInterval);
