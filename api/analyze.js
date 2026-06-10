@@ -119,9 +119,9 @@ export default async function handler(req, res) {
 
   const communeInfo = commune ? `\nCommune : ${commune}${address ? ' — ' + address : ''}` : '';
   const plansInfo = (planUrls && planUrls.length)
-    ? '\nPlans graphiques disponibles (liens de téléchargement) :\n' + 
-      planUrls.map(p => `- Plan graphique ${p.nom?.match(/\d+/)?.[0] || p.nom} : ${p.url}`).join('\n') +
-      '\nQuand tu mentionnes un plan, indique son contenu (ex: plan de zonage, emplacements réservés, patrimoine...) en te basant sur la table des matières du règlement, puis donne le lien correspondant.'
+    ? '\nPlans graphiques disponibles (liens de téléchargement) — le nom indiqué est le titre RÉEL du plan :\n' + 
+      planUrls.map(p => `- ${p.nom} : ${p.url}`).join('\n') +
+      '\nQuand tu mentionnes un plan (mixité sociale, zonage, emplacements réservés, hauteurs...), utilise UNIQUEMENT le lien dont le nom correspond au sujet. Si aucun plan listé ne correspond au sujet (nom générique "Plan graphique N" ou sujet absent), ne mets PAS de lien et indique de consulter la visionneuse GPU — ne devine JAMAIS quel numéro de plan correspond à quel contenu.'
     : (zonageUrl ? `\nPlan graphique : ${zonageUrl}` : '');
   const planInfo = plansInfo;
   const prompt = PROMPT
