@@ -32,22 +32,27 @@ export default async function handler(req, res) {
     const date = name?.match(/(\d{8})$/)?.[1];
     if (!hash || !codgeo || !date) return {};
     const base = `https://data.geopf.fr/annexes/gpu/documents/DU_${codgeo}/${hash}`;
-    // Vérifie quels plans existent en lisant les 4 premiers octets (%PDF)
-    // Plus fiable que HEAD — confirme que c'est bien un vrai PDF
+    // Détection fiable : HEAD + vérification Content-Type application/pdf
+    // Timeout 4s pour éviter les blocages, max 8 plans testés en parallèle
+    async function checkPlan(url) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 4000);
+        const r = await fetch(url, { method: 'HEAD', headers: H, signal: controller.signal });
+        clearTimeout(timeout);
+        if (!r.ok) return null;
+        const ct = r.headers.get('content-type') || '';
+        // Vérifie que c'est bien un PDF et pas une page d'erreur HTML
+        if (ct.includes('html')) return null;
+        return url;
+      } catch(e) { return null; }
+    }
+
     const planChecks = await Promise.all(
       Array.from({length: 8}, (_, i) => i + 1).map(async n => {
         const url = `${base}/${codgeo}_reglement_graphique_${n}_${date}.pdf`;
-        try {
-          const r = await fetch(url, {
-            headers: { ...H, 'Range': 'bytes=0-3' }
-          });
-          if (r.status === 200 || r.status === 206) {
-            const buf = await r.arrayBuffer();
-            const magic = new TextDecoder().decode(buf.slice(0, 4));
-            if (magic === '%PDF') return { nom: `Plan graphique ${n}`, url };
-          }
-          return null;
-        } catch(e) { return null; }
+        const valid = await checkPlan(url);
+        return valid ? { nom: `Plan graphique ${n}`, url } : null;
       })
     );
     const planUrls = planChecks.filter(Boolean);
