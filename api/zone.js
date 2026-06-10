@@ -34,25 +34,24 @@ export default async function handler(req, res) {
     const base = `https://data.geopf.fr/annexes/gpu/documents/DU_${codgeo}/${hash}`;
     // Détection fiable : HEAD + vérification Content-Type application/pdf
     // Timeout 4s pour éviter les blocages, max 8 plans testés en parallèle
-    // Test tous les plans 1-10 avec log détaillé
-    const planChecks = await Promise.all(
-      Array.from({length: 10}, (_, i) => i + 1).map(async n => {
+    // Test plans 1-10 par lots de 3 pour éviter le rate limiting IGN
+    const planUrls = [];
+    for (let batch = 0; batch < 4; batch++) {
+      const ns = [batch*3+1, batch*3+2, batch*3+3].filter(n => n <= 10);
+      const batchResults = await Promise.all(ns.map(async n => {
         const url = `${base}/${codgeo}_reglement_graphique_${n}_${date}.pdf`;
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 2000);
+          const timeout = setTimeout(() => controller.abort(), 5000);
           const r = await fetch(url, { method: 'HEAD', headers: H, signal: controller.signal });
           clearTimeout(timeout);
-          const ct = r.headers.get('content-type') || 'none';
-          console.log(`Plan ${n}: status=${r.status} ct=${ct} url=${url}`);
+          console.log(`Plan ${n}: status=${r.status}`);
           return r.ok ? { nom: `Plan graphique ${n} — ${props.grid_title || codgeo}`, url } : null;
-        } catch(e) {
-          console.log(`Plan ${n}: ERREUR ${e.message}`);
-          return null;
-        }
-      })
-    );
-    const planUrls = planChecks.filter(Boolean);
+        } catch(e) { console.log(`Plan ${n}: ${e.message}`); return null; }
+      }));
+      planUrls.push(...batchResults.filter(Boolean));
+      if (batch < 3) await new Promise(r => setTimeout(r, 300)); // 300ms entre lots
+    }
     console.log('Plans valides:', planUrls.length);
 
     return {
