@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Analyseur PLU — Batipart</title>
+<title>Analyseur PLU</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iIzJDNEE2RSIvPgogIDx0ZXh0IHg9IjE2IiB5PSIyMyIgZm9udC1mYW1pbHk9Ikdlb3JnaWEsc2VyaWYiIGZvbnQtc2l6ZT0iMjAiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+UDwvdGV4dD4KPC9zdmc+">
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -264,7 +264,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
   <!-- STEP 1 : Adresse -->
   <div class="step active" id="step0">
     <div class="s1-inner">
-      <div class="s1-eyebrow">Batipart · Urbanisme</div>
+      <div class="s1-eyebrow">Urbanisme · Île-de-France</div>
       <h1 class="s1-title">Analysez votre PLU en quelques secondes</h1>
       <p class="s1-sub">Entrez l'adresse du bien — la zone et le règlement sont détectés automatiquement.</p>
 
@@ -661,7 +661,7 @@ function downloadNote(type) {
   const opLabels = {destination:'Changement de destination',surelevation:'Surélévation',extension:'Extension'};
   const date = new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
   const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Note de synthèse PLU — ${zone}</title><style>body{font-family:'Segoe UI',Arial,sans-serif;max-width:780px;margin:40px auto;color:#1a1a1a;font-size:14px;line-height:1.7;padding:0 24px}.header{border-bottom:2px solid #2C4A6E;padding-bottom:16px;margin-bottom:24px}.header h1{font-size:20px;color:#2C4A6E;margin:0 0 4px}.header .meta{font-size:12px;color:#666}h2{font-size:15px;font-weight:600;color:#1a1a1a;margin:20px 0 8px;padding-left:10px;border-left:3px solid #2C4A6E}blockquote{background:#f5f5f3;border-left:3px solid #2C4A6E;padding:8px 14px;margin:10px 0;font-size:13px;color:#444;border-radius:0 5px 5px 0}p{margin:0 0 8px}strong{font-weight:600}table{width:100%;border-collapse:collapse;margin:12px 0}th{background:#2C4A6E;color:#fff;padding:8px 12px;text-align:left;font-size:13px}td{padding:7px 12px;border:1px solid #ddd;font-size:13px}tr:nth-child(even) td{background:#f9f8f6}.footer{margin-top:40px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#999}@media print{body{margin:20px}}</style>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"></head><body><div class="header"><h1>Note de synthèse — Analyse PLU</h1><div class="meta"><strong>Adresse :</strong> ${address} &nbsp;|&nbsp; <strong>Zone :</strong> ${zone} &nbsp;|&nbsp; <strong>Opération :</strong> ${opLabels[type] || type}<br><strong>Date :</strong> ${date}</div></div>${mdToHtml(result)}<div class="footer">Document généré par l'outil Analyseur PLU — Batipart · Analyse basée sur le règlement écrit. Pour un dépôt de permis, faire vérifier les plans graphiques par un architecte.</div></body></html>`;
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"></head><body><div class="header"><h1>Note de synthèse — Analyse PLU</h1><div class="meta"><strong>Adresse :</strong> ${address} &nbsp;|&nbsp; <strong>Zone :</strong> ${zone} &nbsp;|&nbsp; <strong>Opération :</strong> ${opLabels[type] || type}<br><strong>Date :</strong> ${date}</div></div>${mdToHtml(result)}<div class="footer">Document généré par l'outil Analyseur PLU · Analyse basée sur le règlement écrit. Pour un dépôt de permis, faire vérifier les plans graphiques par un architecte.</div></body></html>`;
   const blob = new Blob([html], {type:'text/html;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
