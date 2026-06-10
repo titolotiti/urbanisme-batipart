@@ -182,14 +182,50 @@ export default async function handler(req, res) {
       } catch(e) {}
     }
 
-    // Texte complet — Sonnet trouve lui-même tous les articles
-    let sendText = fullText;
-    if (fullText.length > 150000) {
-      sendText = fullText.slice(0, 100000) + '\n...\n' + fullText.slice(-50000);
+    // Extraction intelligente de la section de zone
+    const baseZone = zone.replace(/[a-z]+$/, '').replace(/-[A-Z0-9-]+$/, '') || zone;
+
+    function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+    function extractZoneSection(text, z, base) {
+      try {
+        const zE = escRe(z), bE = escRe(base);
+        const patterns = [
+          new RegExp('ZONE\\s+' + zE + '\\b', 'i'),
+          new RegExp('ZONE\\s+' + bE + '\\b', 'i'),
+          new RegExp('Article\\s+' + bE + '\\s+1\\b', 'i'),
+          new RegExp('^' + bE + '\\s*[-–—:]', 'im'),
+        ];
+        let start = -1;
+        for (const p of patterns) {
+          try { const m = text.search(p); if (m > -1 && (start === -1 || m < start)) start = m; } catch(e) {}
+        }
+        if (start === -1) return null;
+        start = Math.max(0, start - 300);
+        try {
+          const after = text.slice(start + 500);
+          const endM = after.search(new RegExp('\\n(ZONE\\s+[A-Z][A-Z0-9-]+)', 'i'));
+          const end = endM > -1 ? start + 500 + endM : Math.min(start + 80000, text.length);
+          return text.slice(start, end);
+        } catch(e) { return text.slice(start, Math.min(start + 80000, text.length)); }
+      } catch(e) { return null; }
+    }
+
+    const generalText = fullText.slice(0, 20000);
+    const zoneSection = extractZoneSection(fullText, zone, baseZone);
+
+    let sendText;
+    if (zoneSection) {
+      sendText = generalText + '\n\n--- ZONE ' + zone + ' ---\n\n' + zoneSection;
+      console.log('Zone trouvée:', zoneSection.length, 'chars');
+    } else {
+      const third = Math.floor(fullText.length / 3);
+      sendText = fullText.slice(0, 50000) + '\n...\n' + fullText.slice(third, third + 50000) + '\n...\n' + fullText.slice(-30000);
+      console.log('Zone non trouvée, découpage 3 parties');
     }
     console.log('Texte envoyé:', sendText.length, 'chars');
 
-    const fullPrompt = 'Voici le règlement PLU complet. Trouve et analyse TOUS les articles concernant la zone "' + zone + '".\n\n' + sendText + '\n\n---\n\n' + prompt;
+    const fullPrompt = 'Voici les extraits du règlement PLU pour la zone "' + zone + '".\n\n' + sendText + '\n\n---\n\n' + prompt;
 
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
