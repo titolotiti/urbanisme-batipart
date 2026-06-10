@@ -24,10 +24,7 @@ Explication 2-3 phrases.
 
 Texte EXACT entre guillemets. Toujours indiquer page et article.
 
-IMPORTANT : Ne commence pas par un avertissement préalable. Lance-toi directement dans l'analyse.
-À la toute fin seulement, ajoute cette ligne unique :
-
-À la toute fin, ajoute une seule ligne :
+IMPORTANT : Ne commence pas par un avertissement préalable. Lance-toi directement dans l'analyse.`;
 
 const OPERATIONS = {
   destination: "Changement de destination — bureaux → logements, bâtiment existant",
