@@ -32,8 +32,8 @@ export default async function handler(req, res) {
     const date = name?.match(/(\d{8})$/)?.[1];
     if (!hash || !codgeo || !date) return {};
     const base = `https://data.geopf.fr/annexes/gpu/documents/DU_${codgeo}/${hash}`;
-    // Lien direct vers le portail GPU pour accéder à tous les plans
-    const gpuPortalUrl = `https://www.geoportail-urbanisme.gouv.fr/document/visualize-by-id/${hash}`;
+    // Lien vers la page du PLU sur le Géoportail de l'Urbanisme (tous les plans disponibles)
+    const gpuPortalUrl = `https://www.geoportail-urbanisme.gouv.fr/?tab=du&partition=DU_${codgeo}`;
 
     return {
       pluUrl: `${base}/${codgeo}_reglement_${date}.pdf`,
