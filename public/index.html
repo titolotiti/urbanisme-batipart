@@ -200,6 +200,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
   .step.active{position:static}
 }
 </style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 </head>
 <body>
 
@@ -326,7 +327,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
 
       <div class="acard" id="av-destination">
         <div class="acard-hd" onclick="toggleAV('destination')">
-          <div class="acard-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9h18M3 15h18M9 3v18"/></svg></div>
+          <div class="acard-ic"><i class="ti ti-transform" aria-hidden="true"></i></div>
           <div class="acard-info">
             <div class="acard-title">Changement de destination</div>
             <div class="acard-sub">Bureaux → logements · Bâtiment existant</div>
@@ -355,7 +356,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
 
       <div class="acard" id="av-surelevation">
         <div class="acard-hd" onclick="toggleAV('surelevation')">
-          <div class="acard-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M5 9l7-7 7 7"/></svg></div>
+          <div class="acard-ic"><i class="ti ti-stack" aria-hidden="true"></i></div>
           <div class="acard-info">
             <div class="acard-title">Surélévation</div>
             <div class="acard-sub">Ajout d'étages · Hauteur max · Gabarit</div>
@@ -384,7 +385,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
 
       <div class="acard" id="av-extension">
         <div class="acard-hd" onclick="toggleAV('extension')">
-          <div class="acard-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/><path d="M13 7h4v4M11 17H7v-4"/></svg></div>
+          <div class="acard-ic"><i class="ti ti-arrows-maximize" aria-hidden="true"></i></div>
           <div class="acard-info">
             <div class="acard-title">Extension</div>
             <div class="acard-sub">Agrandissement · Emprise au sol · Reculs</div>
@@ -658,7 +659,8 @@ function downloadNote(type) {
   const result = results[type] || '';
   const opLabels = {destination:'Changement de destination',surelevation:'Surélévation',extension:'Extension'};
   const date = new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
-  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Note de synthèse PLU — ${zone}</title><style>body{font-family:'Segoe UI',Arial,sans-serif;max-width:780px;margin:40px auto;color:#1a1a1a;font-size:14px;line-height:1.7;padding:0 24px}.header{border-bottom:2px solid #2C4A6E;padding-bottom:16px;margin-bottom:24px}.header h1{font-size:20px;color:#2C4A6E;margin:0 0 4px}.header .meta{font-size:12px;color:#666}h2{font-size:15px;font-weight:600;color:#1a1a1a;margin:20px 0 8px;padding-left:10px;border-left:3px solid #2C4A6E}blockquote{background:#f5f5f3;border-left:3px solid #2C4A6E;padding:8px 14px;margin:10px 0;font-size:13px;color:#444;border-radius:0 5px 5px 0}p{margin:0 0 8px}strong{font-weight:600}table{width:100%;border-collapse:collapse;margin:12px 0}th{background:#2C4A6E;color:#fff;padding:8px 12px;text-align:left;font-size:13px}td{padding:7px 12px;border:1px solid #ddd;font-size:13px}tr:nth-child(even) td{background:#f9f8f6}.footer{margin-top:40px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#999}@media print{body{margin:20px}}</style></head><body><div class="header"><h1>Note de synthèse — Analyse PLU</h1><div class="meta"><strong>Adresse :</strong> ${address} &nbsp;|&nbsp; <strong>Zone :</strong> ${zone} &nbsp;|&nbsp; <strong>Opération :</strong> ${opLabels[type] || type}<br><strong>Date :</strong> ${date}</div></div>${mdToHtml(result)}<div class="footer">Document généré par l'outil Analyseur PLU — Batipart · Analyse basée sur le règlement écrit. Pour un dépôt de permis, faire vérifier les plans graphiques par un architecte.</div></body></html>`;
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Note de synthèse PLU — ${zone}</title><style>body{font-family:'Segoe UI',Arial,sans-serif;max-width:780px;margin:40px auto;color:#1a1a1a;font-size:14px;line-height:1.7;padding:0 24px}.header{border-bottom:2px solid #2C4A6E;padding-bottom:16px;margin-bottom:24px}.header h1{font-size:20px;color:#2C4A6E;margin:0 0 4px}.header .meta{font-size:12px;color:#666}h2{font-size:15px;font-weight:600;color:#1a1a1a;margin:20px 0 8px;padding-left:10px;border-left:3px solid #2C4A6E}blockquote{background:#f5f5f3;border-left:3px solid #2C4A6E;padding:8px 14px;margin:10px 0;font-size:13px;color:#444;border-radius:0 5px 5px 0}p{margin:0 0 8px}strong{font-weight:600}table{width:100%;border-collapse:collapse;margin:12px 0}th{background:#2C4A6E;color:#fff;padding:8px 12px;text-align:left;font-size:13px}td{padding:7px 12px;border:1px solid #ddd;font-size:13px}tr:nth-child(even) td{background:#f9f8f6}.footer{margin-top:40px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#999}@media print{body{margin:20px}}</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"></head><body><div class="header"><h1>Note de synthèse — Analyse PLU</h1><div class="meta"><strong>Adresse :</strong> ${address} &nbsp;|&nbsp; <strong>Zone :</strong> ${zone} &nbsp;|&nbsp; <strong>Opération :</strong> ${opLabels[type] || type}<br><strong>Date :</strong> ${date}</div></div>${mdToHtml(result)}<div class="footer">Document généré par l'outil Analyseur PLU — Batipart · Analyse basée sur le règlement écrit. Pour un dépôt de permis, faire vérifier les plans graphiques par un architecte.</div></body></html>`;
   const blob = new Blob([html], {type:'text/html;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
