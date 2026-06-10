@@ -122,8 +122,10 @@ export default async function handler(req, res) {
 
   const communeInfo = commune ? `\nCommune : ${commune}${address ? ' — ' + address : ''}` : '';
   const plansInfo = (planUrls && planUrls.length)
-    ? '\nPlans graphiques disponibles :\n' + planUrls.map(p => `- Plan ${p.n} : ${p.url}`).join('\n')
-    : (zonageUrl ? `\nPlan graphique téléchargeable : ${zonageUrl}` : '');
+    ? '\nPlans graphiques disponibles (liens de téléchargement) :\n' + 
+      planUrls.map(p => `- Plan graphique ${p.nom?.match(/\d+/)?.[0] || p.nom} : ${p.url}`).join('\n') +
+      '\nQuand tu mentionnes un plan, indique son contenu (ex: plan de zonage, emplacements réservés, patrimoine...) en te basant sur la table des matières du règlement, puis donne le lien correspondant.'
+    : (zonageUrl ? `\nPlan graphique : ${zonageUrl}` : '');
   const planInfo = plansInfo;
   const prompt = PROMPT
     .replace('{ZONE}', zone)
