@@ -7,6 +7,7 @@ Voici les extraits du règlement PLU pour la zone {ZONE}{COMMUNE}.
 Analyse pour l'opération : {OPERATION}
 
 IMPORTANT : Si le règlement couvre plusieurs communes, applique UNIQUEMENT les règles de la commune indiquée.
+Si tu mentionnes un plan graphique, un plan de zonage ou un document cartographique, inclus TOUJOURS le lien de téléchargement fourni ci-dessus directement dans ta réponse sous la forme : [↗ Télécharger le plan graphique]({URL})
 
 ## ① Faisabilité
 **Verdict :** ✅ Possible / ⚠️ Sous conditions / ❌ Interdit / ❓ Non précisé
@@ -114,7 +115,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { zone, analysisType, pluUrl, pluBase64, commune, address } = req.body;
+  const { zone, analysisType, pluUrl, pluBase64, commune, address, zonageUrl } = req.body;
   console.log('Params:', { zone, commune, address: address?.slice(0, 40) });
 
   if (!zone || !analysisType || (!pluUrl && !pluBase64)) return res.status(400).json({ error: 'Paramètres manquants' });
@@ -122,9 +123,10 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'Clé API non configurée' });
 
   const communeInfo = commune ? `\nCommune : ${commune}${address ? ' — ' + address : ''}` : '';
+  const planInfo = zonageUrl ? `\nPlan graphique téléchargeable : ${zonageUrl}` : '';
   const prompt = PROMPT
     .replace('{ZONE}', zone)
-    .replace('{COMMUNE}', communeInfo)
+    .replace('{COMMUNE}', communeInfo + planInfo)
     .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType);
 
   try {
