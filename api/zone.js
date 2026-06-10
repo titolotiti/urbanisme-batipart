@@ -7,6 +7,45 @@ const pdfParse = require('pdf-parse/lib/pdf-parse.js');
 // Lit la 1ère page de chaque plan PDF et extrait le titre réel
 // (ex: "6.13 Plan mixité sociale") au lieu de "Plan graphique N"
 // ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// API GPU officielle : liste des pièces d'un document AVEC leurs titres
+// GET /api/document/{hash}/files → [{name, title, path}]
+// Source prioritaire pour nommer les plans — zéro téléchargement de PDF
+// ═══════════════════════════════════════════════════
+async function fetchGpuFiles(hash) {
+  if (!hash) return null;
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 6000);
+    const r = await fetch(`https://www.geoportail-urbanisme.gouv.fr/api/document/${hash}/files`, {
+      headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+      signal: controller.signal
+    });
+    clearTimeout(t);
+    if (!r.ok) { console.log('GPU files API status:', r.status); return null; }
+    const d = await r.json();
+    return Array.isArray(d) && d.length ? d : null;
+  } catch (e) { console.log('GPU files API err:', e.message); return null; }
+}
+
+// Construit les planUrls depuis la liste API GPU (titres officiels)
+function plansFromGpuFiles(files, base) {
+  const plans = files.filter(f => /graphique/i.test(f.name || ''));
+  if (!plans.length) return null;
+  const result = plans.map(f => {
+    const n = f.name.match(/graphique_(\d+)/)?.[1];
+    let title = (f.title || '').trim();
+    if (!title || /\.pdf$/i.test(title)) title = (f.path || '').trim(); // fallback sur le répertoire
+    if (!title || /\.pdf$/i.test(title)) title = '';
+    const nom = title
+      ? (n ? `Plan ${n} — ${title.slice(0, 90)}` : title.slice(0, 90))
+      : `Plan graphique ${n || ''}`.trim();
+    return { nom, url: `${base}/${f.name}`, n: parseInt(n || '999') };
+  });
+  result.sort((a, b) => a.n - b.n);
+  return result.map(({ nom, url }) => ({ nom, url }));
+}
+
 function pickTitle(text) {
   const lines = (text || '').split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(l => l.length >= 4);
   const head = lines.slice(0, 12);
@@ -85,8 +124,24 @@ export default async function handler(req, res) {
     const date = name?.match(/(\d{8})$/)?.[1];
     if (!hash || !codgeo || !date) return {};
     const base = `https://data.geopf.fr/annexes/gpu/documents/DU_${codgeo}/${hash}`;
+
+    // SOURCE PRIORITAIRE : API GPU /files — liste exacte des plans avec titres officiels
+    // Universel (tous PLU/PLUi), zéro téléchargement, zéro rate limiting
+    const gpuFiles = await fetchGpuFiles(hash);
+    const gpuPlans = gpuFiles ? plansFromGpuFiles(gpuFiles, base) : null;
+    if (gpuPlans?.length) {
+      console.log('Plans via API GPU files:', gpuPlans.length);
+      return {
+        pluUrl: `${base}/${codgeo}_reglement_${date}.pdf`,
+        zonageUrl: gpuPlans[0]?.url || null,
+        planUrls: gpuPlans,
+        pluName: `${props.du_type || 'PLU'} ${props.grid_title || ''}` + fmtDate(`${base}/${codgeo}_reglement_${date}.pdf`),
+      };
+    }
+
+    // FALLBACK : détection par HEAD si l'API GPU ne répond pas
     // Détection fiable : HEAD + vérification Content-Type application/pdf
-    // Timeout 4s pour éviter les blocages, max 8 plans testés en parallèle
+    // Timeout 5s pour éviter les blocages
     // Test plans 1-10 par lots de 3 pour éviter le rate limiting IGN
     const planUrls = [];
     for (let batch = 0; batch < 4; batch++) {
@@ -199,11 +254,14 @@ export default async function handler(req, res) {
           pluName = urls.pluName;
           zonageUrl = urls.zonageUrl;
           // Fusionne les plans trouvés dans features + ceux de buildUrlsFromDocProps
-          // Fusionne plans APICarto + plans HEAD (toujours les deux)
+          // Le titre officiel (API GPU) remplace toujours un nom générique existant
           const headPlans = urls.planUrls || [];
-          const allUrls = new Set(planUrls.map(p => p.url));
+          const byUrl = new Map(planUrls.map(p => [p.url, p]));
           for (const p of headPlans) {
-            if (!allUrls.has(p.url)) { planUrls.push(p); allUrls.add(p.url); }
+            const existing = byUrl.get(p.url);
+            if (existing) {
+              if (!/^Plan graphique\b/.test(p.nom)) existing.nom = p.nom; // titre officiel prioritaire
+            } else { planUrls.push(p); byUrl.set(p.url, p); }
           }
 
           console.log('✓ Source: APICarto →', pluUrl, '| Plans:', planUrls.length);
@@ -338,7 +396,14 @@ export default async function handler(req, res) {
         const [, du, hash, , date2] = urlMatch;
         const cg = du;
         const base2 = `https://data.geopf.fr/annexes/gpu/documents/DU_${cg}/${hash}`;
-        // Par lots de 3 + pause 300ms (même protection rate limiting que la source principale)
+        // 1. API GPU files (titres officiels)
+        const gpuFiles2 = await fetchGpuFiles(hash);
+        const gpuPlans2 = gpuFiles2 ? plansFromGpuFiles(gpuFiles2, base2) : null;
+        if (gpuPlans2?.length) {
+          planUrls = gpuPlans2;
+          console.log('Plans (fallback API GPU):', planUrls.length);
+        } else {
+        // 2. Sinon HEAD probing par lots de 3 + pause 300ms
         for (let batch = 0; batch < 4; batch++) {
           const ns = [batch*3+1, batch*3+2, batch*3+3].filter(n => n <= 10);
           const batchResults = await Promise.all(ns.map(async n => {
@@ -354,12 +419,14 @@ export default async function handler(req, res) {
           planUrls.push(...batchResults.filter(Boolean));
           if (batch < 3) await new Promise(r => setTimeout(r, 300));
         }
-        console.log('Plans (fallback détection):', planUrls.length);
+        console.log('Plans (fallback détection HEAD):', planUrls.length);
+        }
       }
     }
 
-    // ── Labellisation des plans : extrait le titre réel depuis chaque PDF ──
-    await labelPlans(planUrls, H);
+    // ── Labellisation pdf-parse : SEULEMENT pour les plans restés sans titre officiel ──
+    const unnamed = planUrls.filter(p => /^Plan graphique\b/.test(p.nom || ''));
+    if (unnamed.length) await labelPlans(unnamed, H);
 
     // ── PPRI : vérification zone inondable via Géorisques ──
     let ppri = null;
