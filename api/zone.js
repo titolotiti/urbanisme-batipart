@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   // APICarto retourne : id (hash), name ("92051_PLU_20210629"), grid_name ("92051")
   // C'est la source principale — fonctionne pour TOUTES les communes
   // ═══════════════════════════════════════════════════
-  function buildUrlsFromDocProps(props) {
+  async function buildUrlsFromDocProps(props) {
     const hash = props.id || props.gpu_doc_id;
     const name = props.name; // ex: "92051_PLU_20210629" ou "200057867_PLUi_20251216"
     const codgeo = props.grid_name || name?.match(/^(\d+)_/)?.[1];
@@ -106,7 +106,7 @@ export default async function handler(req, res) {
         const props = dD.features[0].properties;
         partition = props.name || props.partition || null;
         console.log('APICarto doc props:', JSON.stringify(props));
-        const urls = buildUrlsFromDocProps(props);
+        const urls = await buildUrlsFromDocProps(props);
         if (urls.pluUrl) {
           pluUrl = urls.pluUrl;
           pluName = urls.pluName;
