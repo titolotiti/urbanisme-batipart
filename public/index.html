@@ -422,9 +422,14 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
 
 <script>
 // STATE
-let pluUrl = null, pluBase64 = null, zonageUrl = null, currentAddress = '', currentCity = '';
+let pluUrl = null, pluBase64 = null, zonageUrl = null, planUrls = [], currentAddress = '', currentCity = '';
 const results = {};
 let currentStep = 0;
+
+function togglePlans() {
+  const el = document.getElementById('plansList');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
 
 function toggleManual() {
   const btn = document.getElementById('manualToggle');
@@ -564,10 +569,18 @@ async function findZone() {
     if (d.pluUrl) {
       pluUrl = d.pluUrl;
       zonageUrl = d.zonageUrl || null;
+      planUrls = d.planUrls || [];
       const po = document.getElementById('pluOk');
       let html = '📄 <strong style="color:var(--ink2)">' + (d.pluName||'Règlement PLU') + '</strong>';
       html += ' &nbsp;<a href="' + d.pluUrl + '" target="_blank" style="color:var(--blue);font-size:12px">↗ Règlement</a>';
-      if (d.zonageUrl) html += ' &nbsp;<a href="' + d.zonageUrl + '" target="_blank" style="color:var(--blue);font-size:12px">↗ Plans graphiques</a>';
+      if (planUrls.length) {
+        html += ' &nbsp;<button onclick="togglePlans()" style="background:none;border:none;color:var(--blue);font-size:12px;cursor:pointer;padding:0">↗ Plans graphiques (' + planUrls.length + ')</button>';
+        html += '<div id="plansList" style="display:none;margin-top:8px;background:var(--s2);border-radius:8px;padding:8px 12px;border:1px solid var(--bdr)">';
+        planUrls.forEach(p => {
+          html += '<div style="margin-bottom:4px"><a href="' + p.url + '" target="_blank" style="color:var(--blue);font-size:12px;display:flex;align-items:center;gap:5px">↗ ' + p.nom + '</a></div>';
+        });
+        html += '</div>';
+      }
       po.innerHTML = html;
       po.style.display = 'block';
     }
@@ -642,7 +655,7 @@ async function runAnalysis(type) {
   try {
     const r = await fetch('/api/analyze', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({zone, analysisType: type, pluUrl, pluBase64, commune: currentCity, address: currentAddress, zonageUrl}),
+      body: JSON.stringify({zone, analysisType: type, pluUrl, pluBase64, commune: currentCity, address: currentAddress, zonageUrl, planUrls}),
       signal: controller.signal
     });
     clearInterval(progressInterval);
