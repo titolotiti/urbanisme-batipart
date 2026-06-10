@@ -34,25 +34,26 @@ export default async function handler(req, res) {
     const base = `https://data.geopf.fr/annexes/gpu/documents/DU_${codgeo}/${hash}`;
     // Détection fiable : HEAD + vérification Content-Type application/pdf
     // Timeout 4s pour éviter les blocages, max 8 plans testés en parallèle
-    async function checkPlan(url) {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 4000);
-        const r = await fetch(url, { method: 'HEAD', headers: H, signal: controller.signal });
-        clearTimeout(timeout);
-        return r.ok ? url : null;
-      } catch(e) { return null; }
-    }
-
+    // Test tous les plans 1-10 avec log détaillé
     const planChecks = await Promise.all(
       Array.from({length: 10}, (_, i) => i + 1).map(async n => {
         const url = `${base}/${codgeo}_reglement_graphique_${n}_${date}.pdf`;
-        const valid = await checkPlan(url);
-        return valid ? { nom: `Plan graphique ${n}`, url } : null;
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+          const r = await fetch(url, { method: 'HEAD', headers: H, signal: controller.signal });
+          clearTimeout(timeout);
+          const ct = r.headers.get('content-type') || 'none';
+          console.log(`Plan ${n}: status=${r.status} ct=${ct} url=${url}`);
+          return r.ok ? { nom: `Plan graphique ${n}`, url } : null;
+        } catch(e) {
+          console.log(`Plan ${n}: ERREUR ${e.message}`);
+          return null;
+        }
       })
     );
     const planUrls = planChecks.filter(Boolean);
-    console.log('Plans trouvés:', planUrls.length);
+    console.log('Plans valides:', planUrls.length);
 
     return {
       pluUrl: `${base}/${codgeo}_reglement_${date}.pdf`,
