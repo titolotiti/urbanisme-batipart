@@ -45,7 +45,7 @@ export default async function handler(req, res) {
     }
 
     const planChecks = await Promise.all(
-      Array.from({length: 8}, (_, i) => i + 1).map(async n => {
+      Array.from({length: 10}, (_, i) => i + 1).map(async n => {
         const url = `${base}/${codgeo}_reglement_graphique_${n}_${date}.pdf`;
         const valid = await checkPlan(url);
         return valid ? { nom: `Plan graphique ${n}`, url } : null;
@@ -146,7 +146,12 @@ export default async function handler(req, res) {
           pluName = urls.pluName;
           zonageUrl = urls.zonageUrl;
           // Fusionne les plans trouvés dans features + ceux de buildUrlsFromDocProps
-          if (planUrls.length === 0) planUrls = urls.planUrls || [];
+          // Fusionne plans APICarto + plans HEAD (toujours les deux)
+          const headPlans = urls.planUrls || [];
+          const allUrls = new Set(planUrls.map(p => p.url));
+          for (const p of headPlans) {
+            if (!allUrls.has(p.url)) { planUrls.push(p); allUrls.add(p.url); }
+          }
 
           console.log('✓ Source: APICarto →', pluUrl, '| Plans:', planUrls.length);
         }
