@@ -32,27 +32,26 @@ export default async function handler(req, res) {
     const date = name?.match(/(\d{8})$/)?.[1];
     if (!hash || !codgeo || !date) return {};
     const base = `https://data.geopf.fr/annexes/gpu/documents/DU_${codgeo}/${hash}`;
-    // Flux ATOM officiel GPU — seule source garantissant des URLs valides
-    let planUrls = [];
-    try {
-      const atomR = await fetch(
-        `https://www.geoportail-urbanisme.gouv.fr/atom/download-feed/DU_${codgeo}`,
-        { headers: H }
-      );
-      if (atomR.ok) {
-        const xml = await atomR.text();
-        // Parse les entrées du flux ATOM
-        const entries = [...xml.matchAll(/<entry>[\s\S]*?<\/entry>/g)];
-        for (const entry of entries) {
-          const title = entry[0].match(/<title[^>]*>([^<]+)<\/title>/)?.[1] || '';
-          const href = entry[0].match(/<link[^>]+href="([^"]+\.pdf)"[^>]*\/>/)?.[1]
-                    || entry[0].match(/<id>([^<]+\.pdf)<\/id>/)?.[1];
-          if (href && (title.toLowerCase().includes('graphique') || title.toLowerCase().includes('plan') || title.toLowerCase().includes('zonage'))) {
-            planUrls.push({ nom: title.trim(), url: href });
+    // Vérifie quels plans existent en lisant les 4 premiers octets (%PDF)
+    // Plus fiable que HEAD — confirme que c'est bien un vrai PDF
+    const planChecks = await Promise.all(
+      Array.from({length: 8}, (_, i) => i + 1).map(async n => {
+        const url = `${base}/${codgeo}_reglement_graphique_${n}_${date}.pdf`;
+        try {
+          const r = await fetch(url, {
+            headers: { ...H, 'Range': 'bytes=0-3' }
+          });
+          if (r.status === 200 || r.status === 206) {
+            const buf = await r.arrayBuffer();
+            const magic = new TextDecoder().decode(buf.slice(0, 4));
+            if (magic === '%PDF') return { nom: `Plan graphique ${n}`, url };
           }
-        }
-      }
-    } catch(e) { console.log('Plans ATOM err:', e.message); }
+          return null;
+        } catch(e) { return null; }
+      })
+    );
+    const planUrls = planChecks.filter(Boolean);
+    console.log('Plans trouvés:', planUrls.length);
 
     return {
       pluUrl: `${base}/${codgeo}_reglement_${date}.pdf`,
