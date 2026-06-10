@@ -581,9 +581,12 @@ async function findZone() {
         });
         html += '</div>';
       } else if (d.citycode) {
-        // Pas de plans PDF → lien vers la visionneuse cartographique GPU
+        // Pas de plans PDF → visionneuse GPU + recherche mairie
         const viewerUrl = 'https://www.geoportail-urbanisme.gouv.fr/map/#zoom=15&lon=' + (d.coordinates?.lon||2.35) + '&lat=' + (d.coordinates?.lat||48.85);
-        html += ' &nbsp;<a href="' + viewerUrl + '" target="_blank" style="color:var(--blue);font-size:12px" title="Voir le plan de zonage interactif">🗺 Visionneuse PLU</a>';
+        const communeName = d.address?.match(/\d{5}\s+(.+)$/)?.[1] || currentCity || '';
+        const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent('PLU plans graphiques ' + communeName + ' mairie télécharger');
+        html += ' &nbsp;<a href="' + viewerUrl + '" target="_blank" style="color:var(--blue);font-size:12px">🗺 Visionneuse</a>';
+        html += ' &nbsp;<a href="' + searchUrl + '" target="_blank" style="color:var(--blue);font-size:12px">🔍 Plans sur le site de la mairie</a>';
       }
       po.innerHTML = html;
       po.style.display = 'block';
