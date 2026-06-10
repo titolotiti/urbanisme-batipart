@@ -223,12 +223,37 @@ export default async function handler(req, res) {
       if (entry) { [pluUrl, pluName] = entry; console.log('✓ DB fallback:', citycode); }
     }
 
-    console.log('FINAL:', { citycode, zone, partition, found: !!pluUrl });
+    // ── PPRI : vérification zone inondable via Géorisques ──
+    let ppri = null;
+    if (lat && lon) {
+      try {
+        const geoR = await fetch(
+          `https://georisques.gouv.fr/api/v1/gaspar/ppr?rayon=1000&latlon=${lon},${lat}&page=1&page_size=20`,
+          { headers: H }
+        );
+        if (geoR.ok) {
+          const geoD = await geoR.json();
+          const inondation = (geoD.data || []).find(p =>
+            p.type_risque_jo?.toLowerCase().includes('inond') ||
+            p.libelle_risque_jo?.toLowerCase().includes('inond')
+          );
+          if (inondation) {
+            ppri = {
+              nom: inondation.libelle_ppr || inondation.libelle_risque_jo || 'PPRI',
+              statut: inondation.etat_ppr || null
+            };
+          }
+        }
+      } catch(e) { console.log('PPRI err:', e.message); }
+    }
+
+    console.log('FINAL:', { citycode, zone, partition, found: !!pluUrl, ppri });
     return res.status(200).json({
       success: true, address: label,
       coordinates: { lat, lon },
       citycode, zone, partition,
-      pluUrl, pluName, zonageUrl
+      pluUrl, pluName, zonageUrl,
+      ppri
     });
 
   } catch(err) {
