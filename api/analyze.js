@@ -202,13 +202,24 @@ export default async function handler(req, res) {
         }
         if (!candidates.size) return null;
         // 2. Score chaque candidat : densité de contenu réglementaire dans les
-        //    4000 chars suivants. Le sommaire score bas, le corps du texte score haut.
-        let best = -1, bestScore = -1;
+        //    4000 chars suivants, MOINS une pénalité "sommaire" (lignes courtes
+        //    finissant par des n° de page / pointillés — signature d'une table
+        //    des matières, même détaillée comme celle du PLU de Paris),
+        //    PLUS un léger bonus de position (le corps vient après le sommaire).
+        let best = -1, bestScore = -Infinity;
         for (const pos of candidates) {
           const w = text.slice(pos, pos + 4000);
-          const score = (w.match(/article|chapitre|destination|interdit|autoris|hauteur|emprise|implantation|stationnement|pleine terre|recul/gi) || []).length;
+          const kw = (w.match(/article|chapitre|destination|interdit|autoris|hauteur|emprise|implantation|stationnement|pleine terre|recul/gi) || []).length;
+          const wl = w.split('\n').map(l => l.trim()).filter(l => l.length > 3);
+          const tocish = wl.filter(l =>
+            /[.\u2026]{2,}\s*\d{1,4}$/.test(l) ||                                  // "Hauteur ....... 132"
+            (/\s\d{1,4}$/.test(l) && l.length < 70 && !/[m²°%]|m\d|\bm\b/i.test(l)) // ligne courte finissant par un n° de page
+          ).length;
+          const tocRatio = wl.length ? tocish / wl.length : 0;
+          const score = kw * (1 - 1.5 * tocRatio) - tocish + (pos / text.length) * 3;
           if (score > bestScore) { bestScore = score; best = pos; }
         }
+        if (best === -1) return null;
         const start = Math.max(0, best - 300);
         // 3. Fin de section : prochaine ZONE DIFFÉRENTE (ignore les en-têtes de page
         //    qui répètent la zone courante)
