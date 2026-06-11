@@ -284,6 +284,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
           <div id="pluOk" style="display:none;margin-top:8px"></div>
           <div class="warn-age" id="pluAgeWarning">⚠️ Ce règlement date de plus de 2 ans — vérifiez s'il a été mis à jour.</div>
           <div class="warn-ppri" id="ppriWarning"></div>
+          <div class="warn-ppri" id="procWarning" style="background:#fffbeb;border-color:#fde68a;color:#92400e"></div>
         </div>
 
         <button class="manual-toggle" id="manualToggle" onclick="toggleManual()">
@@ -561,6 +562,13 @@ async function findZone() {
         ppriEl.style.display = 'block';
       } else if (ppriEl) {
         ppriEl.style.display = 'none';
+      }
+      const procEl = document.getElementById('procWarning');
+      if (d.procedures && d.procedures.length && procEl) {
+        procEl.innerHTML = '📋 <strong>Procédure(s) d\'urbanisme postérieure(s) au document publié :</strong> ' + d.procedures.join(' ; ') + ' — le règlement affiché peut être en cours d\'évolution, à vérifier auprès de la collectivité.';
+        procEl.style.display = 'block';
+      } else if (procEl) {
+        procEl.style.display = 'none';
       }
       showGeo('ok', '✅ <strong>' + d.address + '</strong><br>Zone : <strong style="color:var(--blue);font-size:15px">' + d.zone + '</strong>');
     } else {
