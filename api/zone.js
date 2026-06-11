@@ -110,8 +110,8 @@ function pickTitle(text) {
   const KW = /\b(plan|zonage|mixit|emplacement|hauteur|secteur|patrimoine|risque|servitude|stationnement|espace|prescription|lin[ée]aire|synth[èe]se|assemblage|planche)\w*/i;
 
   // Coupe le titre dès qu'on déborde sur la légende ou les mentions du cartouche.
-  // Tolère les lettres espacées ("Lég e nde", "P lan loc al") fréquentes en extraction PDF.
-  const CUT = /l\s*[ée]\s*g\s*e?\s*n\s*d\s*e|p\s*l\s*a\s*n\s+l\s*o\s*c\s*a\s*l\s+d|source\s*:/i;
+  // Tolère les lettres espacées ("Lég e nde", "Saint-De nis") fréquentes en extraction PDF.
+  const CUT = /l\s*[ée]\s*g\s*e?\s*n\s*d\s*e|p\s*l\s*a\s*n\s+l\s*o\s*c\s*a\s*l\s+d|source\s*:|n\s*o\s*y\s*a\s*u\s*x\s+d\s*e|s\s*e\s*c\s*o\s*n\s*d?\s*e?\s+p\s*e\s*a\s*u|hauteur\s+plafond|perc[ée]e\s+visuelle|p[ée]rim[èe]tre\s+de\s+hauteur/i;
   const cleanTitle = t => {
     if (!t) return null;
     const m = t.search(CUT);
@@ -157,8 +157,10 @@ function pickTitle(text) {
   }
 
   // 3. Ligne numérotée complète type "6.13 Plan mixité sociale" (début OU fin de page)
+  //    Numérotation à 2 niveaux minimum ("6.13", "4-2-2") pour exclure les items
+  //    de légende numérotés ("12 Hauteur plafond...")
   const scan = [...lines.slice(0, 12), ...lines.slice(-12)];
-  let t = scan.find(l => !isNoise(l) && letterOk(l) && KW.test(l) && /^\d+([.\-]\d+)*([.\-]?[a-z])?\s*[-–—:.]?\s+\D/.test(l) && l.length <= 120);
+  let t = scan.find(l => !isNoise(l) && letterOk(l) && KW.test(l) && /^\d+[.\-]\d+([.\-]\d+)*([.\-]?[a-z])?\s*[-–—:.]?\s+\D/.test(l) && l.length <= 120);
   // 4. Ligne avec mot-clé urbanisme
   if (!t) t = scan.find(l => !isNoise(l) && letterOk(l) && KW.test(l) && l.length >= 8 && l.length <= 120);
   return cleanTitle(t);
@@ -550,8 +552,8 @@ export default async function handler(req, res) {
     }
 
     // ── Labellisation pdf-parse : SEULEMENT pour les plans restés sans titre
-    //    officiel, max 21 pour ne pas exploser le timeout ──
-    const unnamed = planUrls.filter(p => /^Plan graphique\b/.test(p.nom || '')).slice(0, 21);
+    //    officiel, max 42 — couvre tous les plans, le cache amortit les recherches suivantes ──
+    const unnamed = planUrls.filter(p => /^Plan graphique\b/.test(p.nom || '')).slice(0, 42);
     if (unnamed.length) await labelPlans(unnamed, H);
 
     // ── Re-filtrage après labellisation (les titres extraits des PDF peuvent
