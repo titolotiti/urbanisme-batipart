@@ -232,44 +232,115 @@ function pickTitle(text) {
   return cleanTitle(t);
 }
 
-async function fetchPlanTitle(url, headers) {
-  // Cache mémoire (persiste entre invocations sur une lambda chaude) :
-  // la liste se complète au fil des recherches sans re-télécharger les PDF
-  globalThis.__planTitleCache = globalThis.__planTitleCache || {};
-  if (url in globalThis.__planTitleCache) return globalThis.__planTitleCache[url];
-  let title = null;
+// Récupère le texte de la 1ère page d'un plan (cache mémoire)
+async function fetchPlanText(url, headers) {
+  globalThis.__planTextCache = globalThis.__planTextCache || {};
+  if (url in globalThis.__planTextCache) return globalThis.__planTextCache[url];
+  let snippet = null;
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
     const r = await fetch(url, { headers, signal: controller.signal });
     clearTimeout(timeout);
     if (r.ok) {
+      const CAP = 25 * 1024 * 1024; // trop lourd → nom générique conservé
       const size = parseInt(r.headers.get('content-length') || '0');
-      if (size <= 25 * 1024 * 1024) { // trop lourd → on garde le nom générique
-        const buf = Buffer.from(await r.arrayBuffer());
-        if (buf.length <= 25 * 1024 * 1024) {
+      if (size > CAP) { try { r.body?.cancel(); } catch (e) {} }
+      else {
+        // Lecture en streaming plafonnée : coupe NET au-delà du plafond,
+        // même si le serveur ne déclare pas de content-length (anti-OOM)
+        const reader = r.body.getReader();
+        const chunks = []; let total = 0; let tooBig = false;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          total += value.length;
+          if (total > CAP) { tooBig = true; try { await reader.cancel(); } catch (e) {} break; }
+          chunks.push(value);
+        }
+        if (!tooBig) {
+          const buf = Buffer.concat(chunks);
           const data = await pdfParse(buf, { max: 1 }); // 1ère page seulement
-          title = pickTitle(data.text);
+          const lines = (data.text || '').split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(l => l.length >= 2);
+          if (lines.length) {
+            // Le cartouche est souvent en fin de page : début + fin du texte
+            const head = lines.slice(0, 8).join('\n');
+            const tail = lines.slice(-30).join('\n');
+            snippet = (head + '\n[...]\n' + tail).slice(-1100);
+          }
         }
       }
     }
   } catch (e) {}
-  globalThis.__planTitleCache[url] = title;
-  return title;
+  globalThis.__planTextCache[url] = snippet;
+  return snippet;
+}
+
+// ═══════════════════════════════════════════════════
+// Titrage des plans par IA — UNIVERSEL, robuste à toutes les mises en page
+// UN SEUL appel Claude pour tous les plans d'un document.
+// L'heuristique pickTitle ne sert plus que de filet de secours.
+// ═══════════════════════════════════════════════════
+async function aiTitlePlans(items) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey || !items.length) return null;
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 40000);
+    const prompt = `Voici des extraits de texte de la première page de plans graphiques de PLU/PLUi (cartes d'urbanisme). Le titre du plan figure dans le cartouche, souvent vers la fin de l'extrait, parfois avec des lettres anormalement espacées (ex: "Lég e nde", "P lan de zo nage"). Identifie pour chaque plan son titre, par exemple "4-2-2 Plan de zonage détaillé Saint-Denis (nord)" ou "6.13 Plan mixité sociale" ou "Plan des hauteurs".
+
+Règles STRICTES :
+- Réponds UNIQUEMENT avec un objet JSON, sans aucun texte autour ni backticks : {"<clé>": "<titre>"} avec null si non identifiable.
+- N'invente JAMAIS un titre absent du texte. En cas de doute : null.
+- Ignore les noms de rues, les items de légende, les échelles, les dates d'approbation, les noms de communes voisines isolés.
+- Recolle les lettres espacées dans le titre rendu.
+- Titre de 90 caractères maximum.
+
+${items.map(it => `=== PLAN ${it.key} ===\n${it.text}`).join('\n\n')}`;
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] }),
+      signal: controller.signal
+    });
+    clearTimeout(t);
+    if (!r.ok) { console.log('AI titles status:', r.status); return null; }
+    const d = await r.json();
+    const txt = (d.content || []).filter(c => c.type === 'text').map(c => c.text || '').join('');
+    const obj = JSON.parse(txt.replace(/```json|```/g, '').trim());
+    return obj && typeof obj === 'object' ? obj : null;
+  } catch (e) { console.log('AI titles err:', e.message); return null; }
 }
 
 async function labelPlans(plans, headers) {
   if (!plans?.length) return;
-  // Par lots de 3 + pause 250ms pour ne pas se faire couper par le serveur IGN
+  globalThis.__planTitleCache = globalThis.__planTitleCache || {};
+  // 1. Texte de 1ère page de chaque plan, par lots de 3 (rate limiting IGN)
+  const items = [];
+  let idx = 0;
   for (let i = 0; i < plans.length; i += 3) {
     const batch = plans.slice(i, i + 3);
     await Promise.all(batch.map(async p => {
-      const title = await fetchPlanTitle(p.url, headers);
+      if (globalThis.__planTitleCache[p.url]) { p.nom = globalThis.__planTitleCache[p.url]; return; }
+      const text = await fetchPlanText(p.url, headers);
       const n = p.url.match(/graphique_(\d+)_/)?.[1];
-      if (title) p.nom = (n ? `Plan ${n} — ` : '') + title;
-      console.log(`Label plan ${n || '?'}: ${title || '(titre non extractable, nom générique conservé)'}`);
+      if (text) items.push({ key: n || `x${++idx}`, n, p, text });
+      else console.log(`Label plan ${n || '?'}: (texte non extractable, nom générique conservé)`);
     }));
     if (i + 3 < plans.length) await new Promise(r => setTimeout(r, 250));
+  }
+  if (!items.length) return;
+  // 2. Titrage IA en UN appel ; heuristique en secours
+  const ai = await aiTitlePlans(items.map(({ key, text }) => ({ key, text })));
+  for (const it of items) {
+    let title = ai && typeof ai[it.key] === 'string' ? ai[it.key].trim() : null;
+    if (title && title.length < 4) title = null;
+    if (!title) title = pickTitle(it.text); // filet de secours heuristique
+    if (title) {
+      it.p.nom = (it.n ? `Plan ${it.n} — ` : '') + String(title).slice(0, 90);
+      globalThis.__planTitleCache[it.p.url] = it.p.nom;
+    }
+    console.log(`Label plan ${it.n || it.key}: ${title ? title + (ai?.[it.key] ? ' [IA]' : ' [heuristique]') : '(titre non identifiable, nom générique conservé)'}`);
   }
 }
 
