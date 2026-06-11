@@ -36,8 +36,11 @@ function plansFromGpuFiles(files, base) {
   const result = plans.map(f => {
     const n = f.name.match(/graphique_(\d+)/)?.[1];
     let title = (f.title || '').trim();
+    // Titres non-informatifs ("Règlement graphique 10", "Plan graphique 3", "10"...)
+    // → traités comme vides pour déclencher la lecture pdf-parse de la 1ère page
+    if (/^(r[èe]glement|plan)?\s*graphique\s*\d*$/i.test(title) || /^\d+$/.test(title)) title = '';
     if (!title || /\.pdf$/i.test(title)) title = (f.path || '').trim(); // fallback sur le répertoire
-    if (!title || /\.pdf$/i.test(title)) title = '';
+    if (!title || /\.pdf$/i.test(title) || /^r[èe]glements?$/i.test(title)) title = '';
     // Fallback : partie descriptive du nom de fichier
     // ex: "200057867_reglement_graphique_zonage_Saint-Denis_20251216.pdf" → "zonage Saint-Denis"
     if (!title) {
@@ -111,33 +114,43 @@ function pickTitle(text) {
 }
 
 async function fetchPlanTitle(url, headers) {
+  // Cache mémoire (persiste entre invocations sur une lambda chaude) :
+  // la liste se complète au fil des recherches sans re-télécharger les PDF
+  globalThis.__planTitleCache = globalThis.__planTitleCache || {};
+  if (url in globalThis.__planTitleCache) return globalThis.__planTitleCache[url];
+  let title = null;
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
+    const timeout = setTimeout(() => controller.abort(), 8000);
     const r = await fetch(url, { headers, signal: controller.signal });
     clearTimeout(timeout);
-    if (!r.ok) return null;
-    const size = parseInt(r.headers.get('content-length') || '0');
-    if (size > 15 * 1024 * 1024) return null; // trop lourd → on garde le nom générique
-    const buf = Buffer.from(await r.arrayBuffer());
-    if (buf.length > 15 * 1024 * 1024) return null;
-    const data = await pdfParse(buf, { max: 1 }); // 1ère page seulement
-    return pickTitle(data.text);
-  } catch (e) { return null; }
+    if (r.ok) {
+      const size = parseInt(r.headers.get('content-length') || '0');
+      if (size <= 25 * 1024 * 1024) { // trop lourd → on garde le nom générique
+        const buf = Buffer.from(await r.arrayBuffer());
+        if (buf.length <= 25 * 1024 * 1024) {
+          const data = await pdfParse(buf, { max: 1 }); // 1ère page seulement
+          title = pickTitle(data.text);
+        }
+      }
+    }
+  } catch (e) {}
+  globalThis.__planTitleCache[url] = title;
+  return title;
 }
 
 async function labelPlans(plans, headers) {
   if (!plans?.length) return;
-  // Par lots de 2 + pause 250ms pour ne pas se faire couper par le serveur IGN
-  for (let i = 0; i < plans.length; i += 2) {
-    const batch = plans.slice(i, i + 2);
+  // Par lots de 3 + pause 250ms pour ne pas se faire couper par le serveur IGN
+  for (let i = 0; i < plans.length; i += 3) {
+    const batch = plans.slice(i, i + 3);
     await Promise.all(batch.map(async p => {
       const title = await fetchPlanTitle(p.url, headers);
       const n = p.url.match(/graphique_(\d+)_/)?.[1];
       if (title) p.nom = (n ? `Plan ${n} — ` : '') + title;
       console.log(`Label plan ${n || '?'}: ${title || '(titre non extractable, nom générique conservé)'}`);
     }));
-    if (i + 2 < plans.length) await new Promise(r => setTimeout(r, 250));
+    if (i + 3 < plans.length) await new Promise(r => setTimeout(r, 250));
   }
 }
 
@@ -486,8 +499,8 @@ export default async function handler(req, res) {
     }
 
     // ── Labellisation pdf-parse : SEULEMENT pour les plans restés sans titre
-    //    officiel, max 12 pour ne pas exploser le timeout ──
-    const unnamed = planUrls.filter(p => /^Plan graphique\b/.test(p.nom || '')).slice(0, 12);
+    //    officiel, max 21 pour ne pas exploser le timeout ──
+    const unnamed = planUrls.filter(p => /^Plan graphique\b/.test(p.nom || '')).slice(0, 21);
     if (unnamed.length) await labelPlans(unnamed, H);
 
     // ── Re-filtrage après labellisation (les titres extraits des PDF peuvent
