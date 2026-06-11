@@ -130,6 +130,33 @@ export default async function handler(req, res) {
     .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType);
 
   try {
+    // Téléchargement plafonné en streaming : coupe NET au-delà de maxBytes,
+    // même si le serveur ne déclare pas de content-length. Rend impossible
+    // la saturation mémoire (cf. règlement GPU Plaine Commune à 1,1 Go).
+    async function downloadCapped(dlUrl, maxBytes) {
+      const r = await fetch(dlUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      if (!r.ok) throw new Error('Téléchargement échoué (' + r.status + ')');
+      const cl = parseInt(r.headers.get('content-length') || '0');
+      if (cl > maxBytes) {
+        try { r.body?.cancel(); } catch (e) {}
+        throw new Error('PDF_TROP_VOLUMINEUX:' + Math.round(cl / 1048576));
+      }
+      const reader = r.body.getReader();
+      const chunks = []; let total = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.length;
+        if (total > maxBytes) {
+          try { await reader.cancel(); } catch (e) {}
+          throw new Error('PDF_TROP_VOLUMINEUX:>' + Math.round(maxBytes / 1048576));
+        }
+        chunks.push(value);
+      }
+      return Buffer.concat(chunks);
+    }
+    const MAX_PDF = 60 * 1024 * 1024; // 60 Mo
+
     // Détermine l'URL à utiliser
     let url = pluUrl;
     if (!pluBase64 && url) {
@@ -150,14 +177,24 @@ export default async function handler(req, res) {
       }
     }
 
-    // Télécharge le PDF
+    // Télécharge le PDF (plafonné)
     let pdfBuffer;
     if (pluBase64) {
       pdfBuffer = Buffer.from(pluBase64, 'base64');
     } else {
-      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-      if (!r.ok) throw new Error('Téléchargement échoué (' + r.status + ')');
-      pdfBuffer = Buffer.from(await r.arrayBuffer());
+      try {
+        pdfBuffer = await downloadCapped(url, MAX_PDF);
+      } catch (e) {
+        const code2 = (pluUrl || '').match(/DU_(\d+)\//)?.[1];
+        const fb = code2 && FALLBACK_URLS[code2 + '_zones'];
+        if (/PDF_TROP_VOLUMINEUX/.test(e.message) && fb && url !== fb) {
+          console.log('PDF trop lourd (' + e.message.split(':')[1] + ' Mo) → fallback zones');
+          url = fb;
+          pdfBuffer = await downloadCapped(url, MAX_PDF);
+        } else if (/PDF_TROP_VOLUMINEUX/.test(e.message)) {
+          return res.status(422).json({ error: 'Le règlement publié sur le Géoportail est trop volumineux pour l\'analyse automatique (' + e.message.split(':')[1] + ' Mo). Téléchargez-le manuellement, extrayez la partie utile (zone concernée) et utilisez l\'upload manuel du PDF.' });
+        } else throw e;
+      }
       console.log('PDF:', Math.round(pdfBuffer.length / 1024 / 1024), 'MB');
     }
 
@@ -165,18 +202,15 @@ export default async function handler(req, res) {
     let fullText = await extractText(pdfBuffer);
     console.log('Texte extrait:', fullText.length, 'chars');
 
-    // Pour Plaine Commune : ajoute aussi les dispositions générales
+    // Pour Plaine Commune : ajoute aussi les dispositions générales (plafonné anti-OOM)
     const urlCode = (pluUrl || '').match(/DU_(\d+)\//)?.[1];
     if (urlCode && FALLBACK_URLS[urlCode + '_general']) {
       try {
-        const gr = await fetch(FALLBACK_URLS[urlCode + '_general'], { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        if (gr.ok) {
-          const gb = Buffer.from(await gr.arrayBuffer());
-          const generalText = await extractText(gb);
-          fullText = generalText.slice(0, 40000) + '\n\n' + fullText;
-          console.log('Dispositions générales ajoutées');
-        }
-      } catch(e) {}
+        const gb = await downloadCapped(FALLBACK_URLS[urlCode + '_general'], 40 * 1024 * 1024);
+        const generalText = await extractText(gb);
+        fullText = generalText.slice(0, 40000) + '\n\n' + fullText;
+        console.log('Dispositions générales ajoutées');
+      } catch(e) { console.log('Dispositions générales ignorées:', e.message); }
     }
 
     // Extraction intelligente de la section de zone
