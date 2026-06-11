@@ -12,6 +12,32 @@ const pdfParse = require('pdf-parse/lib/pdf-parse.js');
 // GET /api/document/{hash}/files → [{name, title, path}]
 // Source prioritaire pour nommer les plans — zéro téléchargement de PDF
 // ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// Résolution du document COURANT d'un territoire via l'API GPU
+// GET /api/document?gridName={code} → hash + date du document en production
+// Évite que la DB hardcodée ne périme à chaque mise à jour de PLU
+// ═══════════════════════════════════════════════════
+async function resolveCurrentDoc(gridCode) {
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 6000);
+    const r = await fetch(`https://www.geoportail-urbanisme.gouv.fr/api/document?gridName=${gridCode}&status=document.production&limit=20`, {
+      headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+      signal: controller.signal
+    });
+    clearTimeout(t);
+    if (!r.ok) { console.log('resolveCurrentDoc status:', r.status); return null; }
+    const docs = await r.json();
+    const du = (Array.isArray(docs) ? docs : []).filter(d => /^(PLUi?|POS|PSMV)$/.test(d.type || ''));
+    if (!du.length) return null;
+    du.sort((a, b) => new Date(b.uploadDate || 0) - new Date(a.uploadDate || 0));
+    const d = du[0];
+    const m = (d.name || '').match(/^(\w+)_[A-Za-z]+_(\d{8})$/);
+    if (!m || !d.id) return null;
+    return { codgeo: m[1], date: m[2], hash: d.id, duType: d.type, title: d.grid?.title || '' };
+  } catch (e) { console.log('resolveCurrentDoc err:', e.message); return null; }
+}
+
 async function fetchGpuFiles(hash) {
   if (!hash) return null;
   try {
@@ -504,7 +530,26 @@ export default async function handler(req, res) {
       };
 
       const entry = DB[citycode];
-      if (entry) { [pluUrl, pluName] = entry; console.log('✓ DB fallback:', citycode); }
+      if (entry) {
+        let [dbUrl, dbName] = entry;
+        // La DB peut être périmée (les PLU sont mis à jour régulièrement) :
+        // on résout le document COURANT via l'API GPU à partir du code territoire,
+        // l'URL statique ne sert qu'en dernier recours si l'API ne répond pas.
+        const grid = dbUrl.match(/DU_(\w+)\//)?.[1];
+        if (grid) {
+          const cur = await resolveCurrentDoc(grid);
+          if (cur) {
+            dbUrl = `https://data.geopf.fr/annexes/gpu/documents/DU_${cur.codgeo}/${cur.hash}/${cur.codgeo}_reglement_${cur.date}.pdf`;
+            dbName = `${cur.duType} ${cur.title}`.trim() + ` — màj ${cur.date.slice(6, 8)}/${cur.date.slice(4, 6)}/${cur.date.slice(0, 4)}`;
+            console.log('✓ DB fallback (doc courant via API GPU):', grid, '→', cur.date);
+          } else {
+            console.log('✓ DB fallback (URL statique, API GPU indisponible):', citycode);
+          }
+        } else {
+          console.log('✓ DB fallback (site mairie):', citycode);
+        }
+        pluUrl = dbUrl; pluName = dbName;
+      }
     }
 
     // ── Détection plans graphiques si pas encore trouvés (fallback DB/WFS) ──
