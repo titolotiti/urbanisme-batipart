@@ -121,7 +121,7 @@ export default async function handler(req, res) {
   const plansInfo = (planUrls && planUrls.length)
     ? '\nPlans graphiques disponibles (liens de téléchargement) — le nom indiqué est le titre RÉEL du plan :\n' + 
       planUrls.map(p => `- ${p.nom} : ${p.url}`).join('\n') +
-      '\nQuand tu mentionnes un plan (mixité sociale, zonage, emplacements réservés, hauteurs...), utilise UNIQUEMENT le lien dont le nom correspond au sujet. Si aucun plan listé ne correspond au sujet (nom générique "Plan graphique N" ou sujet absent), ne mets PAS de lien et indique de consulter la visionneuse GPU — ne devine JAMAIS quel numéro de plan correspond à quel contenu.'
+      '\nQuand tu mentionnes un plan (mixité sociale, zonage, emplacements réservés, hauteurs...), utilise UNIQUEMENT le lien dont le nom correspond au sujet. Si aucun plan listé ne correspond au sujet (nom générique "Plan graphique N" ou sujet absent de la liste), ne mets PAS de lien de téléchargement et ne devine JAMAIS quel numéro de plan correspond à quel contenu : indique à la place de consulter le plan recherché en le nommant précisément (ex: "le plan de mixité sociale", "le plan des hauteurs") sur la visionneuse GPU ou sur le site de la commune' + (commune ? ` de ${commune}` : '') + ' / de l\'intercommunalité (rubrique urbanisme ou PLU).'
     : (zonageUrl ? `\nPlan graphique : ${zonageUrl}` : '');
   const planInfo = plansInfo;
   const prompt = PROMPT
