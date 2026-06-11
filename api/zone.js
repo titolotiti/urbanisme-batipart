@@ -109,6 +109,17 @@ function pickTitle(text) {
   const isNumbering = l => /^\d+([.\-]\d+)*([.\-]?[a-z])?\.?$/i.test(l); // "4-2-1", "6.13", "6.3.d"
   const KW = /\b(plan|zonage|mixit|emplacement|hauteur|secteur|patrimoine|risque|servitude|stationnement|espace|prescription|lin[ée]aire|synth[èe]se|assemblage|planche)\w*/i;
 
+  // Coupe le titre dès qu'on déborde sur la légende ou les mentions du cartouche.
+  // Tolère les lettres espacées ("Lég e nde", "P lan loc al") fréquentes en extraction PDF.
+  const CUT = /l\s*[ée]\s*g\s*e?\s*n\s*d\s*e|p\s*l\s*a\s*n\s+l\s*o\s*c\s*a\s*l\s+d|source\s*:/i;
+  const cleanTitle = t => {
+    if (!t) return null;
+    const m = t.search(CUT);
+    let out = m >= 0 ? t.slice(0, m) : t;
+    out = out.replace(/\s{2,}/g, ' ').replace(/[—–\-:,;.\s]+$/, '').trim();
+    return out.length >= 6 ? out.slice(0, 90) : null;
+  };
+
   // 1. ANCRE CARTOUCHE : numérotation seule ("4-2-1") suivie du titre sur les lignes
   //    suivantes ("Plan" / "zonage de synthèse"). Le cartouche est souvent en FIN
   //    de texte extrait (dessiné en dernier), donc on parcourt TOUTE la page.
@@ -122,7 +133,10 @@ function pickTitle(text) {
       j++;
     }
     const joined = parts.join(' ').trim();
-    if (joined && KW.test(joined)) return `${lines[i]} ${joined}`.slice(0, 90);
+    if (joined && KW.test(joined)) {
+      const ct = cleanTitle(`${lines[i]} ${joined}`);
+      if (ct) return ct;
+    }
   }
 
   // 2. ANCRE "Plan local d'urbanisme" : le titre suit généralement cette mention
@@ -136,7 +150,10 @@ function pickTitle(text) {
       if (parts.join(' ').length > 70) break;
     }
     const joined = parts.join(' ').trim();
-    if (joined && (KW.test(joined) || /^\d+([.\-]\d+)*/.test(joined))) return joined.slice(0, 90);
+    if (joined && (KW.test(joined) || /^\d+([.\-]\d+)*/.test(joined))) {
+      const ct = cleanTitle(joined);
+      if (ct) return ct;
+    }
   }
 
   // 3. Ligne numérotée complète type "6.13 Plan mixité sociale" (début OU fin de page)
@@ -144,7 +161,7 @@ function pickTitle(text) {
   let t = scan.find(l => !isNoise(l) && letterOk(l) && KW.test(l) && /^\d+([.\-]\d+)*([.\-]?[a-z])?\s*[-–—:.]?\s+\D/.test(l) && l.length <= 120);
   // 4. Ligne avec mot-clé urbanisme
   if (!t) t = scan.find(l => !isNoise(l) && letterOk(l) && KW.test(l) && l.length >= 8 && l.length <= 120);
-  return t ? t.slice(0, 90) : null;
+  return cleanTitle(t);
 }
 
 async function fetchPlanTitle(url, headers) {
