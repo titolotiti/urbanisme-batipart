@@ -540,6 +540,17 @@ function showGeo(type, html) {
 }
 
 // ── FIND ZONE ──
+  async function safeJson(r) {
+    const text = await r.text();
+    try { return JSON.parse(text); }
+    catch (e) {
+      // Réponse non-JSON (page d'erreur Vercel: timeout, mémoire, crash...)
+      const hint = r.status === 504 ? "délai dépassé — réessayez, la recherche peut être longue sur les gros PLUi"
+                 : r.status >= 500 ? "erreur serveur (" + r.status + ") — réessayez dans quelques instants"
+                 : "réponse inattendue du serveur (" + r.status + ")";
+      throw new Error("Le serveur n'a pas pu traiter la demande : " + hint + ".");
+    }
+  }
 async function findZone() {
   const addr = document.getElementById('address').value.trim();
   if (!addr) return;
@@ -549,7 +560,7 @@ async function findZone() {
   showGeo('load', '📍 Recherche en cours…');
   try {
     const r = await fetch('/api/zone', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({address:addr})});
-    const d = await r.json();
+    const d = await safeJson(r);
     if (!r.ok) throw new Error(d.error);
     if (d.zone) {
       const zEl = document.getElementById('zone');
@@ -675,7 +686,7 @@ async function runAnalysis(type) {
     });
     clearInterval(progressInterval);
     setProgress(type, 95, 'Finalisation…');
-    const d = await r.json();
+    const d = await safeJson(r);
     if (!r.ok) throw new Error(d.error);
     results[type] = d.result;
     setProgress(type, 100, 'Terminé !');
