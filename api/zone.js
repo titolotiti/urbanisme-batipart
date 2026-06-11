@@ -101,15 +101,49 @@ function filterPlansByCommune(plans, communeName, allCommunes) {
 }
 
 function pickTitle(text) {
-  const lines = (text || '').split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(l => l.length >= 4);
-  const head = lines.slice(0, 12);
-  const isNoise = l => /dossier d.approbation|conseil de territoire|approuv[ée]|enqu[êe]te publique|^\d{1,2}\/\d{1,2}\/\d{2,4}$|^page \d/i.test(l);
-  // 1. Ligne numérotée type "6.13 Plan mixité sociale" ou "6.3.d Secteur de plan masse"
-  let t = head.find(l => !isNoise(l) && /^\d+(\.\d+)*(\.[a-z])?\s*[-–—:.]?\s+\D/.test(l) && l.length <= 120);
-  // 2. Ligne avec mot-clé urbanisme
-  if (!t) t = head.find(l => !isNoise(l) && /\b(plan|zonage|mixit|emplacement|hauteur|secteur|patrimoine|risque|servitude|stationnement|espace|prescription|lin[ée]aire)\w*/i.test(l) && l.length >= 8 && l.length <= 120);
-  // 3. Première ligne raisonnable
-  if (!t) t = head.find(l => !isNoise(l) && l.length >= 10 && l.length <= 120);
+  const lines = (text || '').split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(l => l.length >= 2);
+  if (!lines.length) return null;
+  const isNoise = l => /dossier d.approbation|conseil de territoire|approuv[ée]|enqu[êe]te publique|^\d{1,2}\/\d{1,2}\/\d{2,4}$|^page \d|^[ée]chelle|^1\s*\/\s*\d|^l[ée]gende|^zones et secteurs|^[ée]l[ée]ments de contexte/i.test(l);
+  // Filtre anti-bruit : une ligne valable contient au moins 3 lettres et ≥30% de lettres
+  const letterOk = l => { const n = (l.match(/[a-zà-ÿ]/gi) || []).length; return n >= 3 && n / l.length >= 0.3; };
+  const isNumbering = l => /^\d+([.\-]\d+)*([.\-]?[a-z])?\.?$/i.test(l); // "4-2-1", "6.13", "6.3.d"
+  const KW = /\b(plan|zonage|mixit|emplacement|hauteur|secteur|patrimoine|risque|servitude|stationnement|espace|prescription|lin[ée]aire|synth[èe]se|assemblage|planche)\w*/i;
+
+  // 1. ANCRE CARTOUCHE : numérotation seule ("4-2-1") suivie du titre sur les lignes
+  //    suivantes ("Plan" / "zonage de synthèse"). Le cartouche est souvent en FIN
+  //    de texte extrait (dessiné en dernier), donc on parcourt TOUTE la page.
+  for (let i = 0; i < lines.length; i++) {
+    if (!isNumbering(lines[i])) continue;
+    let parts = [], j = i + 1;
+    while (j < lines.length && parts.join(' ').length < 70 && j <= i + 5) {
+      const l = lines[j];
+      if (isNoise(l) || isNumbering(l) || (!letterOk(l) && l.length > 3)) break;
+      if (letterOk(l)) parts.push(l);
+      j++;
+    }
+    const joined = parts.join(' ').trim();
+    if (joined && KW.test(joined)) return `${lines[i]} ${joined}`.slice(0, 90);
+  }
+
+  // 2. ANCRE "Plan local d'urbanisme" : le titre suit généralement cette mention
+  const idxPLU = lines.findIndex(l => /plan local d.urbanisme/i.test(l));
+  if (idxPLU > -1) {
+    let parts = [];
+    for (let j = idxPLU + 1; j < Math.min(idxPLU + 6, lines.length); j++) {
+      const l = lines[j];
+      if (isNoise(l)) break;
+      if (isNumbering(l) || letterOk(l)) parts.push(l);
+      if (parts.join(' ').length > 70) break;
+    }
+    const joined = parts.join(' ').trim();
+    if (joined && (KW.test(joined) || /^\d+([.\-]\d+)*/.test(joined))) return joined.slice(0, 90);
+  }
+
+  // 3. Ligne numérotée complète type "6.13 Plan mixité sociale" (début OU fin de page)
+  const scan = [...lines.slice(0, 12), ...lines.slice(-12)];
+  let t = scan.find(l => !isNoise(l) && letterOk(l) && KW.test(l) && /^\d+([.\-]\d+)*([.\-]?[a-z])?\s*[-–—:.]?\s+\D/.test(l) && l.length <= 120);
+  // 4. Ligne avec mot-clé urbanisme
+  if (!t) t = scan.find(l => !isNoise(l) && letterOk(l) && KW.test(l) && l.length >= 8 && l.length <= 120);
   return t ? t.slice(0, 90) : null;
 }
 
