@@ -38,21 +38,61 @@ async function resolveCurrentDoc(gridCode) {
   } catch (e) { console.log('resolveCurrentDoc err:', e.message); return null; }
 }
 
-async function fetchGpuFiles(hash) {
-  if (!hash) return null;
+// ═══════════════════════════════════════════════════
+// Procédures d'urbanisme d'un territoire via l'API GPU
+// GET /api/{gridName}/procedures — on ne signale que les procédures
+// POSTÉRIEURES à la date du document publié (= évolution en cours probable)
+// ═══════════════════════════════════════════════════
+async function fetchProcedures(gridCode, docDate) {
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 6000);
-    const r = await fetch(`https://www.geoportail-urbanisme.gouv.fr/api/document/${hash}/files`, {
+    const r = await fetch(`https://www.geoportail-urbanisme.gouv.fr/api/${gridCode}/procedures?limit=50`, {
       headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
       signal: controller.signal
     });
     clearTimeout(t);
-    if (!r.ok) { console.log('GPU files API status:', r.status); return null; }
-    const d = await r.json();
-    if (Array.isArray(d) && d.length) console.log('GPU files sample:', JSON.stringify(d.slice(0, 3)));
-    return Array.isArray(d) && d.length ? d : null;
-  } catch (e) { console.log('GPU files API err:', e.message); return null; }
+    if (!r.ok) { console.log('GPU procedures status:', r.status); return null; }
+    const arr = await r.json();
+    if (!Array.isArray(arr) || !arr.length) return null;
+    const TYPES = { E: 'élaboration', R: 'révision', RA: 'révision allégée', M: 'modification', MS: 'modification simplifiée', MEC: 'mise en compatibilité', MAJ: 'mise à jour' };
+    const out = [];
+    for (const p of arr) {
+      // Nom au format [insee/siren]_[type_doc]_[type_proc + n°]_[date], ex: 92051_PLU_MS7_20250919
+      const m = (p.name || '').match(/_([A-Z]+?)(\d*)_(\d{8})$/);
+      const tp = m ? m[1] : (p.procedureType || '');
+      const num = m ? m[2] : (p.procedureNumber || '');
+      const date = m ? m[3] : '';
+      // Ne garder que les procédures plus récentes que le document publié
+      if (!date || (docDate && date <= docDate)) continue;
+      out.push(`${TYPES[tp] || tp}${num ? ' n°' + num : ''} (${date.slice(6, 8)}/${date.slice(4, 6)}/${date.slice(0, 4)})`);
+    }
+    if (out.length) console.log('Procédures postérieures au doc:', out.join(' ; '));
+    return out.length ? out.slice(0, 5) : null;
+  } catch (e) { console.log('GPU procedures err:', e.message); return null; }
+}
+
+async function fetchGpuFiles(hash) {
+  if (!hash) return null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 8000);
+      const r = await fetch(`https://www.geoportail-urbanisme.gouv.fr/api/document/${hash}/files`, {
+        headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+        signal: controller.signal
+      });
+      clearTimeout(t);
+      if (!r.ok) { console.log('GPU files API status:', r.status); return null; }
+      const d = await r.json();
+      if (Array.isArray(d) && d.length) console.log('GPU files sample:', JSON.stringify(d.slice(0, 3)));
+      return Array.isArray(d) && d.length ? d : null;
+    } catch (e) {
+      console.log(`GPU files API err (tentative ${attempt}):`, e.message);
+      if (attempt < 2) await new Promise(r => setTimeout(r, 400));
+    }
+  }
+  return null;
 }
 
 // Construit les planUrls depuis la liste API GPU (titres officiels)
@@ -601,10 +641,24 @@ export default async function handler(req, res) {
     const unnamed = planUrls.filter(p => /^Plan graphique\b/.test(p.nom || '')).slice(0, 42);
     if (unnamed.length) await labelPlans(unnamed, H);
 
+    // Cas du document graphique unique (PLU communaux) : c'est le plan de zonage
+    if (planUrls.length === 1 && /^Plan graphique\b/.test(planUrls[0].nom || '')) {
+      planUrls[0].nom = 'Règlement graphique (plan de zonage)';
+    }
+
     // ── Re-filtrage après labellisation (les titres extraits des PDF peuvent
     //    contenir le nom de la commune) ──
     if (unnamed.length && territoryCommunes?.length) {
       planUrls = filterPlansByCommune(planUrls, city, territoryCommunes);
+    }
+
+    // ── Procédures d'urbanisme postérieures au document publié (API GPU) ──
+    // Signale les modifications/révisions en cours : le règlement affiché
+    // peut être en train d'évoluer, info précieuse pour l'analyse
+    let procedures = null;
+    {
+      const pm = (pluUrl || '').match(/DU_(\w+)\/[^/]+\/\w+?_reglement[^/]*_(\d{8})\.pdf/);
+      if (pm) procedures = await fetchProcedures(pm[1], pm[2]);
     }
 
     // ── PPRI : vérification zone inondable via Géorisques ──
@@ -631,13 +685,13 @@ export default async function handler(req, res) {
       } catch(e) { console.log('PPRI err:', e.message); }
     }
 
-    console.log('FINAL:', { citycode, zone, partition, found: !!pluUrl, ppri });
+    console.log('FINAL:', { citycode, zone, partition, found: !!pluUrl, ppri, procedures });
     return res.status(200).json({
       success: true, address: label,
       coordinates: { lat, lon },
       citycode, zone, partition,
       pluUrl, pluName, zonageUrl, planUrls,
-      ppri
+      ppri, procedures
     });
 
   } catch(err) {
