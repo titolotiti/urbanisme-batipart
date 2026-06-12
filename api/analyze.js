@@ -135,7 +135,10 @@ export default async function handler(req, res) {
     // la saturation mémoire (cf. règlement GPU Plaine Commune à 1,1 Go).
     async function downloadCapped(dlUrl, maxBytes) {
       const r = await fetch(dlUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-      if (!r.ok) throw new Error('Téléchargement échoué (' + r.status + ')');
+      if (!r.ok) {
+        console.log('Téléchargement échoué', r.status, 'sur:', dlUrl);
+        throw new Error('Téléchargement échoué (' + r.status + ')');
+      }
       const cl = parseInt(r.headers.get('content-length') || '0');
       if (cl > maxBytes) {
         try { r.body?.cancel(); } catch (e) {}
@@ -157,6 +160,31 @@ export default async function handler(req, res) {
     }
     const MAX_PDF = 60 * 1024 * 1024; // 60 Mo
 
+    // Retry sur échec transitoire (404/blocage temporaire du serveur distant)
+    // + cache mémoire des règlements déjà téléchargés (lambda chaude)
+    globalThis.__pdfBufCache = globalThis.__pdfBufCache || new Map();
+    async function downloadWithRetry(u, cap, tries = 3) {
+      if (globalThis.__pdfBufCache.has(u)) { console.log('Téléchargement (cache):', u.slice(0, 90)); return globalThis.__pdfBufCache.get(u); }
+      let lastErr;
+      for (let i = 1; i <= tries; i++) {
+        try {
+          console.log(`Téléchargement (${i}/${tries}):`, u.slice(0, 120));
+          const buf = await downloadCapped(u, cap);
+          if (buf.length <= 30 * 1024 * 1024) {
+            if (globalThis.__pdfBufCache.size >= 5) globalThis.__pdfBufCache.delete(globalThis.__pdfBufCache.keys().next().value);
+            globalThis.__pdfBufCache.set(u, buf);
+          }
+          return buf;
+        } catch (e) {
+          lastErr = e;
+          if (/PDF_TROP_VOLUMINEUX/.test(e.message)) throw e; // inutile de réessayer
+          console.log(`Échec téléchargement ${i}/${tries}:`, e.message);
+          if (i < tries) await new Promise(r => setTimeout(r, 900 * i));
+        }
+      }
+      throw lastErr;
+    }
+
     // Détermine l'URL à utiliser
     let url = pluUrl;
     if (!pluBase64 && url) {
@@ -177,23 +205,31 @@ export default async function handler(req, res) {
       }
     }
 
-    // Télécharge le PDF (plafonné)
+    // Télécharge le PDF (plafonné + retry + cache), avec chaîne de repli croisée :
+    // url choisie → fallback zones → URL GPU d'origine, avant d'abandonner
     let pdfBuffer;
     if (pluBase64) {
       pdfBuffer = Buffer.from(pluBase64, 'base64');
     } else {
-      try {
-        pdfBuffer = await downloadCapped(url, MAX_PDF);
-      } catch (e) {
-        const code2 = (pluUrl || '').match(/DU_(\d+)\//)?.[1];
-        const fb = code2 && FALLBACK_URLS[code2 + '_zones'];
-        if (/PDF_TROP_VOLUMINEUX/.test(e.message) && fb && url !== fb) {
-          console.log('PDF trop lourd (' + e.message.split(':')[1] + ' Mo) → fallback zones');
-          url = fb;
-          pdfBuffer = await downloadCapped(url, MAX_PDF);
-        } else if (/PDF_TROP_VOLUMINEUX/.test(e.message)) {
-          return res.status(422).json({ error: 'Le règlement publié sur le Géoportail est trop volumineux pour l\'analyse automatique (' + e.message.split(':')[1] + ' Mo). Téléchargez-le manuellement, extrayez la partie utile (zone concernée) et utilisez l\'upload manuel du PDF.' });
-        } else throw e;
+      const code2 = (pluUrl || '').match(/DU_(\d+)\//)?.[1];
+      const fb = code2 && FALLBACK_URLS[code2 + '_zones'];
+      const tries = [...new Set([url, fb, pluUrl].filter(Boolean))];
+      let lastErr = null;
+      for (const tryUrl of tries) {
+        try {
+          pdfBuffer = await downloadWithRetry(tryUrl, MAX_PDF, 2);
+          url = tryUrl; lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+          console.log('Abandon de', tryUrl.slice(0, 90), '→', e.message);
+        }
+      }
+      if (lastErr) {
+        if (/PDF_TROP_VOLUMINEUX/.test(lastErr.message)) {
+          return res.status(422).json({ error: 'Le règlement publié sur le Géoportail est trop volumineux pour l\'analyse automatique (' + lastErr.message.split(':')[1] + ' Mo). Téléchargez-le manuellement, extrayez la partie utile (zone concernée) et utilisez l\'upload manuel du PDF.' });
+        }
+        return res.status(422).json({ error: 'Impossible de télécharger le règlement après plusieurs tentatives (' + lastErr.message + '). Le serveur de la collectivité est peut-être temporairement indisponible : réessayez dans quelques minutes, ou téléchargez le règlement manuellement et utilisez l\'upload manuel du PDF.' });
       }
       console.log('PDF:', Math.round(pdfBuffer.length / 1024 / 1024), 'MB');
     }
