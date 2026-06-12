@@ -306,8 +306,37 @@ export default async function handler(req, res) {
       } catch(e) { return null; }
     }
 
+    // ── Extraction thématique transversale : MIXITÉ SOCIALE ──
+    // Le volet "logements sociaux" de chaque analyse dépend de chapitres
+    // transversaux (servitudes/secteurs de mixité sociale, L151-15) situés
+    // HORS de la section de zone — souvent au milieu du règlement, donc
+    // invisibles avec le seul découpage début + zone. On localise le passage
+    // le plus dense en occurrences et on l'envoie systématiquement.
+    function extractTopicSection(text, pattern, cap = 16000) {
+      try {
+        const re = new RegExp(pattern, 'gi');
+        const hits = []; let m;
+        while ((m = re.exec(text)) !== null && hits.length < 400) hits.push(m.index);
+        if (!hits.length) return null;
+        // Cluster le plus dense : pour chaque occurrence, nb d'occurrences
+        // dans les `cap` caractères suivants
+        let best = hits[0], bestN = -1;
+        for (const h of hits) {
+          const n = hits.filter(x => x >= h && x < h + cap).length;
+          if (n > bestN) { bestN = n; best = h; }
+        }
+        const start = Math.max(0, best - 1500);
+        return text.slice(start, Math.min(start + cap, text.length));
+      } catch (e) { return null; }
+    }
+
     const generalText = fullText.slice(0, 20000);
     const zoneSection = extractZoneSection(fullText, zone, baseZone);
+    const mixiteSection = extractTopicSection(fullText, 'mixit[ée]\\s+sociale|logements?\\s+locatifs?\\s+sociaux|L\\.?\\s*151-15|servitude\\s+de\\s+mixit[ée]|secteurs?\\s+de\\s+mixit[ée]');
+    // N'ajoute la section mixité que si elle n'est pas déjà couverte par les
+    // extraits envoyés (évite les doublons)
+    const mixiteProbe = mixiteSection ? mixiteSection.slice(2000, 2400) : null;
+    const mixiteNeeded = mixiteSection && mixiteProbe && !(generalText.includes(mixiteProbe) || (zoneSection || '').includes(mixiteProbe));
 
     let sendText;
     if (zoneSection) {
@@ -317,6 +346,10 @@ export default async function handler(req, res) {
       const third = Math.floor(fullText.length / 3);
       sendText = fullText.slice(0, 50000) + '\n...\n' + fullText.slice(third, third + 50000) + '\n...\n' + fullText.slice(-30000);
       console.log('Zone non trouvée, découpage 3 parties');
+    }
+    if (mixiteNeeded) {
+      sendText += '\n\n--- DISPOSITIONS MIXITÉ SOCIALE / LOGEMENTS SOCIAUX (extrait du règlement) ---\n\n' + mixiteSection;
+      console.log('Section mixité sociale ajoutée:', mixiteSection.length, 'chars');
     }
     console.log('Texte envoyé:', sendText.length, 'chars');
 
