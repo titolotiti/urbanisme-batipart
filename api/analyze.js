@@ -221,7 +221,9 @@ export default async function handler(req, res) {
         if (!Array.isArray(files)) return null;
         const base = docUrl.slice(0, docUrl.lastIndexOf('/'));
         return files
-          .filter(f => /reglement/i.test(f.name || '') && !/graphique/i.test(f.name || ''))
+          // Motif STRICT : {codgeo}_reglement[_N]_{date}.pdf — exclut les annexes
+          // pièges comme "info_surf_19_01_reglement_sanitaire" ou les SUP
+          .filter(f => /^\w+?_reglement(_\d+)?_\d{8}\.pdf$/i.test(f.name || '') && !/graphique/i.test(f.name || ''))
           .map(f => ({ name: f.name, title: f.title || '', url: base + '/' + f.name }));
       } catch (e) { console.log('gpuReglementPieces err:', e.message); return null; }
     }
@@ -261,8 +263,16 @@ export default async function handler(req, res) {
           if (texts.length >= 3) break;
         }
         if (texts.length) {
-          preExtractedText = texts.join('\n\n');
-          lastErr = null;
+          const combined = texts.join('\n\n');
+          // Garde-fou : un règlement réel fait des dizaines de milliers de
+          // caractères — un texte squelettique signifie qu'on a attrapé une
+          // mauvaise pièce, mieux vaut continuer vers le recours suivant
+          if (combined.length >= 8000) {
+            preExtractedText = combined;
+            lastErr = null;
+          } else {
+            console.log('Pièces rejetées (texte insuffisant:', combined.length, 'chars) → recours suivant');
+          }
         }
       }
       // Ultime recours (règlement monolithique géant, aucune pièce séparée) :
@@ -407,7 +417,7 @@ export default async function handler(req, res) {
     }
     console.log('Texte envoyé:', sendText.length, 'chars');
 
-    const fullPrompt = 'Voici les extraits du règlement PLU pour la zone "' + zone + '".\n\n' + sendText + '\n\n---\n\n' + prompt;
+    const fullPrompt = 'Voici les extraits du règlement PLU pour la zone "' + zone + '".\n\nRÈGLE ABSOLUE : ne cite et n\'utilise QUE les dispositions présentes dans les extraits ci-dessous. N\'invente ni ne "reconstitue" JAMAIS de règles à partir de règles-types, de PLU similaires ou de connaissances générales — en analyse réglementaire, une règle reconstituée est une erreur grave. Si une information n\'est pas dans les extraits, dis-le explicitement et renvoie au règlement complet.\n\n' + sendText + '\n\n---\n\n' + prompt;
 
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
