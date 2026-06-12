@@ -328,6 +328,9 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
         <div class="s2-hero-plu" id="heroPlu"></div>
       </div>
 
+      <p class="s2-section-title">Votre projet (optionnel)</p>
+      <textarea id="projetDesc" rows="3" placeholder="Décrivez le projet envisagé pour une étude ciblée — ex. : surélévation de 2 niveaux d'un immeuble de bureaux R+5 conservé, avec changement de destination vers logements (~4 500 m² SDP existants)..." style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #d6dde6;border-radius:10px;font:inherit;font-size:14px;resize:vertical;margin-bottom:14px"></textarea>
+
       <p class="s2-section-title">Choisissez une analyse</p>
 
       <div class="acard" id="av-destination">
@@ -681,7 +684,7 @@ async function runAnalysis(type) {
   try {
     const r = await fetch('/api/analyze', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({zone, analysisType: type, pluUrl, pluBase64, commune: currentCity, address: currentAddress, zonageUrl, planUrls}),
+      body: JSON.stringify({zone, analysisType: type, pluUrl, pluBase64, commune: currentCity, address: currentAddress, zonageUrl, planUrls, projet: (document.getElementById('projetDesc')?.value || '').trim() || undefined}),
       signal: controller.signal
     });
     clearInterval(progressInterval);
