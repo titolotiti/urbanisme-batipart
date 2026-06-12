@@ -2,29 +2,58 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse/lib/pdf-parse.js');
 
-const PROMPT = `Tu es un expert en droit de l'urbanisme français.
+const PROMPT = `Tu es un expert en droit de l'urbanisme français travaillant pour un asset manager immobilier. Tu produis une ÉTUDE DE FAISABILITÉ RÉGLEMENTAIRE du niveau d'exigence d'une agence d'architecture (étude capacitaire réglementaire), pas un simple résumé.
 Voici les extraits du règlement PLU pour la zone {ZONE}{COMMUNE}.
-Analyse pour l'opération : {OPERATION}
+Opération étudiée : {OPERATION}{PROJET}
 
 IMPORTANT : Dans un PLUi, les règles sont définies par zone (pas par commune) — elles s'appliquent identiquement à toute parcelle de cette zone, quelle que soit la commune. Analyse les règles de la zone indiquée sans filtrer par commune.
 Si tu mentionnes un plan graphique, un plan de zonage ou un document cartographique, inclus TOUJOURS le lien de téléchargement fourni ci-dessus directement dans ta réponse sous la forme : [↗ Télécharger le plan graphique]({URL})
 
-## ① Faisabilité
-**Verdict :** ✅ Possible / ⚠️ Sous conditions / ❌ Interdit / ❓ Non précisé
-Explication 2-3 phrases.
+# ÉTUDE DE FAISABILITÉ RÉGLEMENTAIRE
+
+## ⓪ Synthèse
+**Verdict global :** ✅ Possible / ⚠️ Sous conditions / ❌ Interdit / ❓ Non déterminable sur les extraits
+3-4 phrases : ce qui est faisable, les 2-3 contraintes majeures, le point le plus discriminant.
+
+## ① Destinations et faisabilité de l'opération
+Destinations autorisées/interdites/sous conditions dans la zone, et verdict motivé pour l'opération étudiée.
 > *Page XX — Article YY :* "Passage exact."
 
-## ② Logements sociaux
-**Obligation :** [Oui X% / Non / Non mentionné]
+## ② Règles morphologiques (tableau exhaustif)
+Pour CHAQUE thème ci-dessous présent dans les extraits, donne la règle chiffrée exacte avec citation. Si un thème est absent des extraits, écris "Non présent dans les extraits transmis" (ne saute pas le thème) :
+- **Implantation / voies et emprises publiques** (alignement, recul)
+- **Limites séparatives** (retraits L=H/2, baies principales/secondaires)
+- **Emprise au sol** (%)
+- **Hauteurs** (hauteur de façade, couronnement/attique, hauteur totale, niveaux)
+- **Saillies, balcons, oriels sur domaine public** (dimensions, hauteur minimale, % de façade)
+- **Pleine terre / CBS / espaces verts** (%, coefficients)
+- **Stationnement** (voitures et vélos par destination, et toute possibilité de dérogation/mutualisation)
+> *Page XX — Article YY :* "Passage exact." (pour chaque règle)
+
+## ③ Servitudes de mixité et leur APPLICABILITÉ à l'opération
+C'est le cœur de l'étude. Pour chaque servitude trouvée (Secteur de Mixité Sociale, Secteur de Taille Minimale de Logements, mixité fonctionnelle, linéaire commercial) :
+1. Cite la règle exacte avec ses seuils (m² de SDP, nombre de logements, %).
+2. Analyse les TERMES EXACTS de son champ d'application ("constructions à édifier", "opérations de reconstruction", "surfaces nouvellement créées"...) et conclus si elle s'applique ou non à l'opération étudiée. Exemple de raisonnement attendu : une surélévation d'un bâtiment conservé n'est ni une "construction à édifier" ni une "reconstruction" — si le règlement emploie ces seuls termes, la servitude est probablement inapplicable, à faire confirmer par la collectivité.
+3. Verdict par servitude : ✅ Applicable / ⚠️ Applicabilité ambiguë (à confirmer) / ❌ Non applicable.
 > *Page XX — Article YY :* "Passage exact."
 
-## ③ Conditions et contraintes
-**[Condition]** — Ce que ça implique.
+## ④ Dispositions favorables mobilisables
+Recherche activement dans les extraits : bonus de constructibilité, hauteur complémentaire (ex. surélévation + rénovation énergétique), majorations pour logement, dérogations de stationnement (ex. au profit de caves/celliers), règles alternatives pour constructions existantes. Pour chacune : conditions exactes et gain potentiel.
 > *Page XX — Article YY :* "Passage exact."
 
-Texte EXACT entre guillemets. Toujours indiquer page et article.
+## ⑤ Points de vigilance et ambiguïtés
+Formulations ambiguës du règlement, marges d'interprétation de la collectivité, contradictions entre dispositions, et ce qu'il faut faire confirmer PAR ÉCRIT avant d'engager des études. Sois critique comme le serait un architecte-conseil.
 
-IMPORTANT : Ne commence pas par un avertissement préalable. Lance-toi directement dans l'analyse.`;
+## ⑥ Vérifications cartographiques requises
+Liste précise des plans à consulter (zonage, hauteurs, SMS, emplacements réservés, PPRI...) et ce qu'il faut y vérifier pour cette adresse. Utilise les liens fournis selon les règles ci-dessus.
+
+## ⑦ Questions à poser à la collectivité
+3 à 6 questions précises, prêtes à envoyer au service urbanisme, ciblées sur les ambiguïtés identifiées en ③ et ⑤.
+
+RÈGLES DE RIGUEUR :
+- Texte EXACT entre guillemets, toujours avec page et article. Ne JAMAIS inventer ni "reconstituer" une règle absente des extraits : écris "Non présent dans les extraits transmis".
+- Distingue toujours ce que dit le règlement (citation) de ton analyse (raisonnement).
+- Ne commence pas par un avertissement préalable. Lance-toi directement dans l'étude.`;
 
 const OPERATIONS = {
   destination: "Changement de destination — bureaux → logements, bâtiment existant",
@@ -110,8 +139,8 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { zone, analysisType, pluUrl, pluBase64, commune, address, zonageUrl, planUrls } = req.body;
-  console.log('Params:', { zone, commune, address: address?.slice(0, 40) });
+  const { zone, analysisType, pluUrl, pluBase64, commune, address, zonageUrl, planUrls, projet } = req.body;
+  console.log('Params:', { zone, commune, address: address?.slice(0, 40), projet: projet?.slice(0, 60) });
 
   if (!zone || !analysisType || (!pluUrl && !pluBase64)) return res.status(400).json({ error: 'Paramètres manquants' });
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -127,7 +156,8 @@ export default async function handler(req, res) {
   const prompt = PROMPT
     .replace('{ZONE}', zone)
     .replace('{COMMUNE}', communeInfo + planInfo)
-    .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType);
+    .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType)
+    .replace('{PROJET}', projet ? '\nDescription du projet envisagé par le client (raisonne sur CE projet précis, notamment pour l\'applicabilité des servitudes en ③) : ' + String(projet).slice(0, 1500) : '');
 
   try {
     // Téléchargement plafonné en streaming : coupe NET au-delà de maxBytes,
@@ -424,7 +454,7 @@ export default async function handler(req, res) {
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
+        max_tokens: 9000,
         messages: [{ role: 'user', content: fullPrompt }]
       })
     });
