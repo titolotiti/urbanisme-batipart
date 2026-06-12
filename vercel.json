@@ -1,6 +1,10 @@
 {
   "functions": {
     "api/analyze.js": {
+      "maxDuration": 300,
+      "memory": 3009
+    },
+    "api/zone.js": {
       "maxDuration": 300
     }
   },
