@@ -245,7 +245,7 @@ async function fetchPlanText(url, headers) {
     if (r.ok) {
       const CAP = 25 * 1024 * 1024; // trop lourd → nom générique conservé
       const size = parseInt(r.headers.get('content-length') || '0');
-      if (size > CAP) { try { r.body?.cancel(); } catch (e) {} }
+      if (size > CAP) { console.log('Plan ignoré (taille ' + Math.round(size / 1048576) + ' Mo):', url.slice(-60)); try { r.body?.cancel(); } catch (e) {} }
       else {
         // Lecture en streaming plafonnée : coupe NET au-delà du plafond,
         // même si le serveur ne déclare pas de content-length (anti-OOM)
@@ -454,7 +454,18 @@ export default async function handler(req, res) {
         const zD = await zR.json();
         if (zD.features?.length) {
           const p = zD.features[0].properties;
-          zone = (p.libelle || p.libelong || p.typezone || '').trim().replace(/\s+/g, '');
+          console.log('Zone props:', JSON.stringify({ libelle: p.libelle, libelong: p.libelong, typezone: p.typezone }));
+          let z = (p.libelle || p.libelong || p.typezone || '').trim().replace(/\s+/g, '');
+          // Assainit les libellés dégénérés uploadés par certaines collectivités
+          // (ex: "UM H H H H H H" → "UMHHHHHH") : aucune zone réelle ne répète
+          // 3 fois la même LETTRE d'affilée (les chiffres type "2000" sont préservés)
+          if (/([A-Za-z])\1{2,}/.test(z)) {
+            const cleaned = z.replace(/([A-Za-z])\1{2,}/g, '$1');
+            console.log('Libellé de zone suspect:', z, '→', cleaned);
+            z = cleaned;
+          }
+          if (z.length > 10) z = z.slice(0, 10);
+          zone = z;
           if (zone) break; // zone trouvée → on arrête
         }
         if (!zone && attempt < 3) {
