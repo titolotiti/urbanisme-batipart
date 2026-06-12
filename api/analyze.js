@@ -265,6 +265,20 @@ export default async function handler(req, res) {
           lastErr = null;
         }
       }
+      // Ultime recours (règlement monolithique géant, aucune pièce séparée) :
+      // une tentative avec plafond étendu — nécessite la mémoire augmentée
+      // dans vercel.json. Au-delà de 130 Mo, on renonce proprement.
+      if (lastErr && /PDF_TROP_VOLUMINEUX/.test(lastErr.message)) {
+        try {
+          console.log('Tentative plafond étendu (130 Mo) sur le règlement principal...');
+          pdfBuffer = await downloadCapped(pluUrl, 130 * 1024 * 1024);
+          console.log('Règlement volumineux récupéré:', Math.round(pdfBuffer.length / 1048576), 'Mo');
+          lastErr = null;
+        } catch (e) {
+          lastErr = e;
+          console.log('Plafond étendu insuffisant:', e.message);
+        }
+      }
       if (lastErr) {
         if (/PDF_TROP_VOLUMINEUX/.test(lastErr.message)) {
           return res.status(422).json({ error: 'Le règlement publié sur le Géoportail est trop volumineux pour l\'analyse automatique (' + lastErr.message.split(':')[1] + ' Mo) et aucune pièce séparée exploitable n\'a été trouvée. Téléchargez-le manuellement, extrayez la partie utile (zone concernée) et utilisez l\'upload manuel du PDF.' });
