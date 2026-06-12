@@ -205,9 +205,30 @@ export default async function handler(req, res) {
       }
     }
 
+    // Repli générique pour règlements trop volumineux : l'API GPU liste les
+    // pièces du document — beaucoup de collectivités publient AUSSI le
+    // règlement en morceaux (partie 1, partie 2, zones...) qui tiennent
+    // dans le plafond mémoire. Universel : fonctionne pour tout PLU/PLUi.
+    async function gpuReglementPieces(docUrl) {
+      try {
+        const m = (docUrl || '').match(/documents\/DU_\w+\/([0-9a-f]{16,40})\//);
+        if (!m) return null;
+        const r = await fetch(`https://www.geoportail-urbanisme.gouv.fr/api/document/${m[1]}/files`, {
+          headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' }
+        });
+        if (!r.ok) return null;
+        const files = await r.json();
+        if (!Array.isArray(files)) return null;
+        const base = docUrl.slice(0, docUrl.lastIndexOf('/'));
+        return files
+          .filter(f => /reglement/i.test(f.name || '') && !/graphique/i.test(f.name || ''))
+          .map(f => ({ name: f.name, title: f.title || '', url: base + '/' + f.name }));
+      } catch (e) { console.log('gpuReglementPieces err:', e.message); return null; }
+    }
+
     // Télécharge le PDF (plafonné + retry + cache), avec chaîne de repli croisée :
-    // url choisie → fallback zones → URL GPU d'origine, avant d'abandonner
-    let pdfBuffer;
+    // url choisie → fallback zones → URL GPU d'origine → pièces séparées GPU
+    let pdfBuffer = null, preExtractedText = null;
     if (pluBase64) {
       pdfBuffer = Buffer.from(pluBase64, 'base64');
     } else {
@@ -225,17 +246,36 @@ export default async function handler(req, res) {
           console.log('Abandon de', tryUrl.slice(0, 90), '→', e.message);
         }
       }
+      // Dernier recours : pièces de règlement séparées listées par l'API GPU
+      if (lastErr) {
+        const pieces = (await gpuReglementPieces(pluUrl)) || [];
+        const others = pieces.filter(p => !tries.includes(p.url));
+        console.log('Pièces de règlement séparées trouvées:', others.length, others.map(p => p.name).join(' ; ').slice(0, 200));
+        const texts = [];
+        for (const p of others.slice(0, 5)) {
+          try {
+            const buf = await downloadWithRetry(p.url, MAX_PDF, 1);
+            texts.push(await extractText(buf));
+            console.log('Pièce utilisée:', p.name, '(' + Math.round(buf.length / 1048576) + ' Mo)');
+          } catch (e) { console.log('Pièce ignorée:', p.name, '→', e.message); }
+          if (texts.length >= 3) break;
+        }
+        if (texts.length) {
+          preExtractedText = texts.join('\n\n');
+          lastErr = null;
+        }
+      }
       if (lastErr) {
         if (/PDF_TROP_VOLUMINEUX/.test(lastErr.message)) {
-          return res.status(422).json({ error: 'Le règlement publié sur le Géoportail est trop volumineux pour l\'analyse automatique (' + lastErr.message.split(':')[1] + ' Mo). Téléchargez-le manuellement, extrayez la partie utile (zone concernée) et utilisez l\'upload manuel du PDF.' });
+          return res.status(422).json({ error: 'Le règlement publié sur le Géoportail est trop volumineux pour l\'analyse automatique (' + lastErr.message.split(':')[1] + ' Mo) et aucune pièce séparée exploitable n\'a été trouvée. Téléchargez-le manuellement, extrayez la partie utile (zone concernée) et utilisez l\'upload manuel du PDF.' });
         }
         return res.status(422).json({ error: 'Impossible de télécharger le règlement après plusieurs tentatives (' + lastErr.message + '). Le serveur de la collectivité est peut-être temporairement indisponible : réessayez dans quelques minutes, ou téléchargez le règlement manuellement et utilisez l\'upload manuel du PDF.' });
       }
-      console.log('PDF:', Math.round(pdfBuffer.length / 1024 / 1024), 'MB');
+      if (pdfBuffer) console.log('PDF:', Math.round(pdfBuffer.length / 1024 / 1024), 'MB');
     }
 
-    // Extrait le texte complet avec pdf-parse
-    let fullText = await extractText(pdfBuffer);
+    // Extrait le texte complet avec pdf-parse (ou texte déjà extrait des pièces séparées)
+    let fullText = preExtractedText || await extractText(pdfBuffer);
     console.log('Texte extrait:', fullText.length, 'chars');
 
     // Pour Plaine Commune : ajoute aussi les dispositions générales (plafonné anti-OOM)
