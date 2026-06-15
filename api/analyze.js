@@ -384,13 +384,16 @@ export default async function handler(req, res) {
           if (score > bestScore) { bestScore = score; best = pos; }
         }
         if (best === -1) return null;
-        const start = Math.max(0, best - 300);
+        // Inclure aussi du contenu AVANT le header de zone :
+        // certains règlements (ex: Gennevilliers UPGE) placent les articles
+        // de la zone avant son titre. On remonte de 80k pour ne rien manquer.
+        const start = Math.max(0, best - 80000);
         // 3. Fin de section : prochaine ZONE DIFFÉRENTE (ignore les en-têtes de page
         //    qui répètent la zone courante). Le regex couvre tous les formats d'ID :
         //    - Précédés de "ZONE " : ZONE UPGE07, ZONE UAb, ZONE UG
         //    - Sans préfixe "ZONE" : UPGE07 —, UPGE07.1, Article UPGE07
         //    - Avec tiret ou point : UA-1, U.2
-        let end = Math.min(start + 160000, text.length);
+        let end = Math.min(best + 160000, text.length);
         const reEnd = new RegExp(
           '\\n\\s*(?:' +
             'ZONE\\s+([A-Z][A-Z0-9]*(?:[.\\-][A-Z0-9]+)*[a-z]?\\d*)' +      // "ZONE UPGE07"
@@ -400,7 +403,7 @@ export default async function handler(req, res) {
           ')',
           'g'
         );
-        reEnd.lastIndex = start + 500;
+        reEnd.lastIndex = best + 500;  // cherche la fin APRÈS le header, pas depuis start élargi
         let mm;
         while ((mm = reEnd.exec(text)) !== null && mm.index < end) {
           const lbl = (mm[1] || mm[2] || mm[3] || mm[4] || '').toUpperCase();
