@@ -7,9 +7,11 @@ const PROMPT = `Tu es un expert en droit de l'urbanisme français travaillant po
 Voici les extraits du règlement PLU/PLUi pour la zone {ZONE}{COMMUNE}.
 Opération étudiée : {OPERATION}{PROJET}
 
-RÈGLE ABSOLUE : cite UNIQUEMENT les dispositions présentes dans les extraits. Ne jamais inventer, reconstituer ou extrapoler. Si une information est absente : écrire "Information non trouvée dans les documents analysés" — jamais "Non applicable".
-
-IMPORTANT PLUi : les règles sont définies par zone, pas par commune. Analyse toutes les dispositions de la zone {ZONE} sans filtrer par commune.
+RÈGLES ABSOLUES :
+1. Cite UNIQUEMENT les dispositions qui s'appliquent DIRECTEMENT à la zone {ZONE}. Ignore tout ce qui concerne d'autres zones, d'autres communes, d'autres indices non applicables à cette zone.
+2. Si le règlement liste plusieurs cas (ex: indices A1/A2/A3, ou règles par commune), cite UNIQUEMENT le cas qui s'applique à {ZONE}. Si l'indice exact n'est pas déterminable sur les extraits, dis-le en une phrase et renvoie au plan graphique — ne liste pas tous les cas.
+3. Ne jamais inventer, reconstituer ou extrapoler. Si une information est absente : "Information non trouvée dans les documents analysés" — jamais "Non applicable".
+4. PLUi : les règles sont définies par zone. S'il existe des dispositions spécifiques à la zone {ZONE} ET des dispositions générales, combine-les. Ignore les dispositions des autres zones.
 
 Si tu cites un plan graphique ou document cartographique, inclus TOUJOURS son lien sous la forme : [↗ Nom du plan](URL)
 
@@ -658,6 +660,7 @@ RÈGLES DE FUSION :
 - Si contradiction : signale en ⚠️.
 - Conserve toutes les citations exactes (article, texte entre guillemets).
 - Respecte la structure en 5 volets : ① Destinations, ② Mixité sociale, ③ Taille minimale, ④ Mixité fonctionnelle, ⑤ Stationnement.
+- FILTRE STRICT : ne conserve que les règles qui s'appliquent directement à la zone ${zone}. Supprime tout ce qui concerne d'autres zones, d'autres communes, d'autres indices non applicables. Si plusieurs cas sont listés (indices, communes), ne garder que celui de ${zone}. Si l'indice exact est inconnu, une seule phrase le signalant suffit — pas de liste exhaustive.
 
 OBLIGATION ABSOLUE : chaque volet doit apparaître dans la fusion avec :
 - ② Mixité sociale : % LLS, seuil, champ d'application exact, applicabilité. Si absent : "Information non trouvée dans les documents analysés".
