@@ -767,13 +767,52 @@ export default async function handler(req, res) {
       } catch(e) { console.log('PPRI err:', e.message); }
     }
 
-    console.log('FINAL:', { citycode, zone, partition, found: !!pluUrl, ppri, procedures });
+    // ── SMS : secteur de mixité sociale via APICarto GPU info-surf ──
+    // APICarto expose les périmètres de mixité sociale (et autres informations
+    // surfaciques du PLU/PLUi) via la couche info-surf. On y récupère le libellé
+    // exact du secteur (SMS-1, SMS-2, Secteur de diversité...) et le nom du plan
+    // graphique associé pour renvoyer l'utilisateur au bon document.
+    let sms = null;
+    if (lat && lon) {
+      try {
+        const geomStr = JSON.stringify({ type: 'Point', coordinates: [lon, lat] });
+        const smsR = await fetch(
+          `https://apicarto.ign.fr/api/gpu/info-surf?geom=${encodeURIComponent(geomStr)}`,
+          { headers: H, signal: AbortSignal.timeout(8000) }
+        );
+        if (smsR.ok) {
+          const smsD = await smsR.json();
+          const SMS_KEYWORDS = /mixit[ée]|sociaux?|social|logements?\s+aid[ée]s?|diversit[ée]|SMS|LLS/i;
+          const smsFeat = (smsD.features || []).filter(f => {
+            const p = f.properties || {};
+            return SMS_KEYWORDS.test(p.libelle || '') || SMS_KEYWORDS.test(p.txt || '') || SMS_KEYWORDS.test(p.typeinf || '');
+          });
+          if (smsFeat.length) {
+            sms = smsFeat.map(f => {
+              const p = f.properties || {};
+              return {
+                libelle: p.libelle || p.txt || p.typeinf || 'Secteur mixité sociale',
+                typeinf: p.typeinf || null,
+                txt: p.txt || null
+              };
+            });
+            console.log('SMS trouvé:', JSON.stringify(sms));
+          } else {
+            // Aucun périmètre SMS à cette adresse
+            sms = [];
+            console.log('SMS: aucun périmètre à cette adresse');
+          }
+        }
+      } catch(e) { console.log('SMS err:', e.message); }
+    }
+
+    console.log('FINAL:', { citycode, zone, partition, found: !!pluUrl, ppri, sms, procedures });
     return res.status(200).json({
       success: true, address: label,
       coordinates: { lat, lon },
       citycode, zone, partition,
       pluUrl, pluName, zonageUrl, planUrls,
-      ppri, procedures
+      ppri, sms, procedures
     });
 
   } catch(err) {
