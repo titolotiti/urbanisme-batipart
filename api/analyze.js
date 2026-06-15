@@ -125,11 +125,11 @@ function extractZoneText(fullText, zone) {
   // Si zone non trouvée, retourne tout le texte tronqué
   if (!zoneFound) {
     console.log('Zone non trouvée par recherche, envoi texte complet tronqué');
-    return fullText.slice(0, 120000);
+    return fullText.slice(0, 220000); // doublé: 120k→220k
   }
 
   const combined = generalSection + '\n\n--- ZONE ' + zone + ' ---\n\n' + zoneSection;
-  return combined.slice(0, 120000);
+  return combined.slice(0, 220000); // doublé: 120k→220k
 }
 
 export default async function handler(req, res) {
@@ -424,7 +424,7 @@ export default async function handler(req, res) {
       } catch (e) { return null; }
     }
 
-    const generalText = fullText.slice(0, 20000);
+    const generalText = fullText.slice(0, 40000);  // doublé : 20k→40k (dispositions générales souvent longues)
     const zoneSection = extractZoneSection(fullText, zone, baseZone);
     const mixiteSection = extractTopicSection(fullText, 'mixit[ée]\\s+sociale|logements?\\s+locatifs?\\s+sociaux|L\\.?\\s*151-15|servitude\\s+de\\s+mixit[ée]|secteurs?\\s+de\\s+mixit[ée]');
     // N'ajoute la section mixité que si elle n'est pas déjà couverte par les
@@ -437,8 +437,9 @@ export default async function handler(req, res) {
       sendText = generalText + '\n\n--- ZONE ' + zone + ' ---\n\n' + zoneSection;
       console.log('Zone trouvée:', zoneSection.length, 'chars');
     } else {
+      // Fallback : 3 tranches couvrant l'ensemble du document (doublé : 130k→220k)
       const third = Math.floor(fullText.length / 3);
-      sendText = fullText.slice(0, 50000) + '\n...\n' + fullText.slice(third, third + 50000) + '\n...\n' + fullText.slice(-30000);
+      sendText = fullText.slice(0, 80000) + '\n...\n' + fullText.slice(third, third + 80000) + '\n...\n' + fullText.slice(-60000);
       console.log('Zone non trouvée, découpage 3 parties');
     }
     if (mixiteNeeded) {
