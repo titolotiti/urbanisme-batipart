@@ -30,9 +30,10 @@ Pour CHAQUE thème ci-dessous présent dans les extraits, donne la règle chiffr
 - **Stationnement** (voitures et vélos par destination, et toute possibilité de dérogation/mutualisation)
 > *Page XX — Article YY :* "Passage exact." (pour chaque règle)
 
-## ③ Obligations de mixité — trois volets OBLIGATOIRES
+## ③ Contrôles réglementaires complémentaires — trois volets OBLIGATOIRES
 
 > Ces trois volets sont TOUJOURS à traiter, même si l'information semble absente : des extraits thématiques spécifiques ont été ajoutés en fin de contexte. Cherche-y les dispositions avant de conclure à une absence.
+> Règle importante : « Non trouvé dans les extraits transmis » signifie uniquement que l'information n'a pas été retrouvée dans les documents analysés. Ne jamais transformer une absence de source en conclusion juridique de type « non applicable » ou « non concerné ».
 
 ### ③-A Taille minimale des logements (STML / superficie / typologie)
 Cherche dans les extraits : taille minimale de logement (m² de SDP ou SHAB), répartition obligatoire par type (T1/T2/T3+, studios, grands logements), secteur de taille minimale (STML ou équivalent), seuil de déclenchement (nombre de logements ou m²).
@@ -430,55 +431,152 @@ export default async function handler(req, res) {
       } catch(e) { return null; }
     }
 
-    // ── Extraction thématique transversale : MIXITÉ SOCIALE ──
-    // Le volet "logements sociaux" de chaque analyse dépend de chapitres
-    // transversaux (servitudes/secteurs de mixité sociale, L151-15) situés
-    // HORS de la section de zone — souvent au milieu du règlement, donc
-    // invisibles avec le seul découpage début + zone. On localise le passage
-    // le plus dense en occurrences et on l'envoie systématiquement.
-    function extractTopicSection(text, pattern, cap = 16000) {
+    // ── Extraction thématique transversale MULTI-CLUSTERS ───────────────────
+    // Sur les gros PLUi, les infos critiques (SMS, taille minimale, mixité
+    // fonctionnelle) peuvent être dispersées dans plusieurs chapitres :
+    // dispositions générales, servitudes, annexes règlementaires, OAP, règles
+    // transversales. L'ancien extracteur ne gardait qu'un seul cluster dense,
+    // ce qui pouvait faire rater l'article utile.
+    function extractTopicSections(text, pattern, options = {}) {
+      const {
+        window = 14000,
+        before = 2200,
+        maxSections = 4,
+        minDistance = 9000,
+        maxHits = 700,
+        label = 'THÈME'
+      } = options;
+
       try {
         const re = new RegExp(pattern, 'gi');
         const hits = []; let m;
-        while ((m = re.exec(text)) !== null && hits.length < 400) hits.push(m.index);
+        while ((m = re.exec(text)) !== null && hits.length < maxHits) hits.push(m.index);
         if (!hits.length) return null;
-        // Cluster le plus dense : pour chaque occurrence, nb d'occurrences
-        // dans les `cap` caractères suivants
-        let best = hits[0], bestN = -1;
-        for (const h of hits) {
-          const n = hits.filter(x => x >= h && x < h + cap).length;
-          if (n > bestN) { bestN = n; best = h; }
+
+        // Score chaque occurrence par densité locale + présence de signaux juridiques
+        const candidates = hits.map(h => {
+          const start = Math.max(0, h - before);
+          const end = Math.min(text.length, h + window);
+          const chunk = text.slice(start, end);
+          const localHits = hits.filter(x => x >= start && x <= end).length;
+          const legalSignals = (chunk.match(/article|chapitre|section|secteur|servitude|obligation|seuil|pourcentage|surface|logements?|destination|sous-destination|lin[ée]aire|constructibilit[ée]|L\.?\s*151/gi) || []).length;
+          const numbers = (chunk.match(/\d+\s*(?:%|m²|m2|logements?|places?|pi[èe]ces?)/gi) || []).length;
+          return { start, end, score: localHits * 5 + legalSignals + numbers * 2 };
+        });
+
+        candidates.sort((a, b) => b.score - a.score);
+
+        // Garde plusieurs clusters non redondants.
+        const selected = [];
+        for (const c of candidates) {
+          if (selected.length >= maxSections) break;
+          const overlaps = selected.some(s => Math.abs(s.start - c.start) < minDistance || (c.start < s.end && c.end > s.start));
+          if (!overlaps) selected.push(c);
         }
-        const start = Math.max(0, best - 1500);
-        return text.slice(start, Math.min(start + cap, text.length));
+        selected.sort((a, b) => a.start - b.start);
+
+        return selected.map((s, idx) =>
+          `--- ${label} — extrait ciblé ${idx + 1}/${selected.length} ---\n` +
+          text.slice(s.start, s.end)
+        ).join('\n\n');
       } catch (e) { return null; }
     }
 
     const generalText = fullText.slice(0, 40000);
     const zoneSection = extractZoneSection(fullText, zone, baseZone);
 
-    // ── Extracteurs thématiques transversaux ────────────────────────────────
-    // Ces trois volets sont souvent dans des chapitres séparés de la section de
-    // zone — on localise le cluster le plus dense pour chacun.
+    // ── Dictionnaire de recherche réglementaire ─────────────────────────────
+    // Objectif : ne pas dépendre d'un seul nom comme "SMS". Les collectivités
+    // changent souvent de vocabulaire. On combine acronymes, termes juridiques,
+    // expressions métier et formulations de règles chiffrées.
+    const TOPIC_PATTERNS = {
+      mixiteSociale: [
+        'SMS',
+        'secteurs?\\s+de\\s+mixit[ée]\\s+sociale',
+        'servitudes?\\s+de\\s+mixit[ée]\\s+sociale',
+        'mixit[ée]\\s+sociale',
+        'diversit[ée]\\s+de\\s+l[’\\']?habitat',
+        'mixit[ée]\\s+de\\s+l[’\\']?habitat',
+        'logements?\\s+locatifs?\\s+sociaux',
+        'logements?\\s+sociaux',
+        'LLS',
+        'PLAI|PLUS|PLS',
+        'part\\s+minimale\\s+de\\s+logements?\\s+sociaux',
+        'pourcentage\\s+de\\s+logements?\\s+sociaux',
+        'objectif\\s+de\\s+mixit[ée]\\s+sociale',
+        'servitude\\s+logement',
+        'programme\\s+de\\s+logements?\\s+sociaux',
+        'L\\.?\\s*151\\s*-\\s*15',
+        'article\\s+L\\.?\\s*151\\s*-\\s*15',
+        'constructions?\\s+à\\s+[ée]difier.*logements?\\s+sociaux',
+        'op[ée]rations?\\s+de\\s+logements?.*\\d+\\s*%.*sociaux'
+      ].join('|'),
 
-    // 1. Mixité sociale (SMS, L151-15, logements sociaux)
-    const mixiteSection = extractTopicSection(fullText,
-      'mixit[ée]\\s+sociale|logements?\\s+locatifs?\\s+sociaux|L\\.?\\s*151-15|servitude\\s+de\\s+mixit[ée]|secteurs?\\s+de\\s+mixit[ée]|secteur\\s+SMS|objectif\\s+de\\s+mixit[ée]');
+      tailleMinimale: [
+        'STML',
+        'secteurs?\\s+de\\s+taille\\s+minimale',
+        'taille\\s+minimale\\s+(?:des?\\s+)?logements?',
+        'surface\\s+minimale\\s+(?:des?\\s+)?logements?',
+        'superficie\\s+minimale\\s+(?:des?\\s+)?logements?',
+        'typologie\\s+(?:des?\\s+)?logements?',
+        'r[ée]partition\\s+(?:des?\\s+)?logements?',
+        'taille\\s+et\\s+capacit[ée]\\s+d[’\\']?accueil',
+        'minimum\\s+de\\s+T[1-5]',
+        'T[1-5]\\s*(?:et\\s+plus|\\+)',
+        'studios?',
+        'grands?\\s+logements?',
+        'au\\s+moins\\s+\\d+\\s*%\\s*(?:de\\s+)?(?:T[1-5]|logements?)',
+        'surface\\s+habitable|SHAB|surface\\s+de\\s+plancher|SDP'
+      ].join('|'),
 
-    // 2. Taille minimale de logements (STML, T1/T2/T3/T4, surface minimale, typologie)
-    const tailleSection = extractTopicSection(fullText,
-      'taille\\s+minimale|surface\\s+minimale\\s+(?:des?\\s+)?logements?|typ(?:e|ologie)\\s+(?:de\\s+)?logements?\\s*:?\\s*(?:T[1-5]|\\d\\s*pi[èe]ces?)|STML|taille\\s+et\\s+capacit[ée]|r[ée]partition\\s+(?:des?\\s+)?logements?|minimum\\s+de\\s+T[1-5]|au\\s+moins\\s+\\d+\\s*%\\s*(?:de\\s+)?(?:logements?|T[1-5])');
+      mixiteFonctionnelle: [
+        'mixit[ée]\\s+fonctionnelle',
+        'diversit[ée]\\s+fonctionnelle',
+        'mixit[ée]\\s+des\\s+destinations?',
+        'lin[ée]aires?\\s+(?:commerciaux|de\\s+commerces?|d[’\\']?activit[ée]s?)',
+        'protection\\s+(?:du\\s+)?commerce',
+        'commerce\\s+(?:obligatoire|impos[ée])',
+        'activit[ée]\\s+(?:obligatoire|impos[ée])',
+        'rez[-\\s]?de[-\\s]?chauss[ée]e\\s+(?:actif|commercial|anim[ée])',
+        'RDC\\s+(?:actif|commercial)',
+        'animation\\s+commerciale',
+        'destination\\s+(?:obligatoire|impos[ée])',
+        'sous[-\\s]?destination',
+        '(?:part|quote-?part|proportion|pourcentage)\\s+(?:minimale\\s+|maximale\\s+)?(?:de\\s+)?(?:logements?|bureaux|commerces?|activit[ée]s?)',
+        'changement\\s+de\\s+destination.*(?:commerce|activit[ée]|logement|bureau)'
+      ].join('|')
+    };
 
-    // 3. Mixité fonctionnelle (% logement/commerce, rez-de-chaussée actif, linéaire commercial)
-    const mixiteFoncSection = extractTopicSection(fullText,
-      'mixit[ée]\\s+fonctionnelle|lin[ée]aire\\s+(?:de\\s+)?(?:commerces?|activit[ée]s?)|rez-de-chauss[ée]e\\s+(?:actif|commercial)|destination\\s+(?:obligatoire|impos[ée]e?).*(?:commerce|activit[ée])|(?:part|quote-?part|proportion)\\s+(?:de\\s+)?(?:logements?|bureaux|commerces?)|obligation\\s+de\\s+(?:commerces?|activit[ée]s?)|r[ée]partition\\s+(?:des?\\s+)?(?:surfaces?|destinations?)');
+    const mixiteSection = extractTopicSections(fullText, TOPIC_PATTERNS.mixiteSociale, {
+      label: 'MIXITÉ SOCIALE / LOGEMENTS SOCIAUX',
+      maxSections: 5,
+      window: 15000
+    });
+
+    const tailleSection = extractTopicSections(fullText, TOPIC_PATTERNS.tailleMinimale, {
+      label: 'TAILLE MINIMALE / TYPOLOGIE DES LOGEMENTS',
+      maxSections: 4,
+      window: 13000
+    });
+
+    const mixiteFoncSection = extractTopicSections(fullText, TOPIC_PATTERNS.mixiteFonctionnelle, {
+      label: 'MIXITÉ FONCTIONNELLE / LINÉAIRES COMMERCIAUX',
+      maxSections: 5,
+      window: 15000
+    });
 
     // Fonction de déduplication : n'ajoute une section que si elle n'est pas
-    // déjà couverte par le texte déjà envoyé
+    // déjà couverte par le texte déjà envoyé. Version robuste pour les sections
+    // courtes : l'ancien probe section.slice(2000,2400) pouvait retourner vide.
     function addIfNew(existing, section) {
       if (!section) return false;
-      const probe = section.slice(2000, 2400);
-      return probe && !existing.includes(probe);
+      const norm = s => String(s || '').replace(/\s+/g, ' ').trim();
+      const e = norm(existing);
+      const s = norm(section);
+      if (s.length < 80) return false;
+      const start = Math.min(Math.floor(s.length * 0.25), Math.max(0, s.length - 400));
+      const probe = s.slice(start, start + 400);
+      return probe.length > 80 && !e.includes(probe);
     }
 
     const MAX_SEND = 180000; // plafond par appel pour rester sous le timeout
@@ -541,8 +639,9 @@ export default async function handler(req, res) {
 
       const baseContext = generalText.slice(0, 20000) + '\n\n';
 
-      // Sections thématiques : cap à 10 000 chars chacune.
-      const THEMATIC_CAP = 10000;
+      // Sections thématiques : cap augmenté car chaque thème peut contenir
+      // plusieurs clusters non contigus dans les gros PLUi.
+      const THEMATIC_CAP = 26000;
       const THEMATIC_ITEMS = [
         { label: 'TAILLE MINIMALE / TYPOLOGIE DES LOGEMENTS (③-A)', section: tailleSection },
         { label: 'MIXITÉ SOCIALE / LOGEMENTS SOCIAUX (③-B)', section: mixiteSection },
