@@ -667,10 +667,10 @@ OBLIGATION ABSOLUE : chaque volet doit apparaître dans la fusion avec :
 Jamais "Non applicable".
 
 --- ANALYSE PARTIE 1 ---
-\${result1}
+${result1}
 
 --- ANALYSE PARTIE 2 ---
-\${result2}`;
+${result2}`;
 
       console.log('Appel fusion...');
       analysisText = await callClaude(fusionPrompt);
