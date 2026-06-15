@@ -202,6 +202,22 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
   .steps-wrap{position:static}
   .step.active{position:static}
 }
+/* ── ACCORDÉON RÉSULTATS ── */
+.acc-intro{margin-bottom:12px}
+.acc-item{border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px;overflow:hidden}
+.acc-item.open{border-color:#2C4A6E}
+.acc-hd{width:100%;display:flex;align-items:center;gap:10px;padding:13px 16px;background:#f8fafc;border:none;cursor:pointer;text-align:left;font:inherit;font-size:14px;font-weight:600;color:#1a2a3a;transition:background .15s}
+.acc-item.open .acc-hd{background:#2C4A6E;color:#fff}
+.acc-hd:hover{background:#e8eef5}
+.acc-item.open .acc-hd:hover{background:#253f5e}
+.acc-title{flex:1}
+.acc-arrow{font-size:20px;font-weight:300;line-height:1;transition:transform .2s;opacity:.7}
+.acc-item.open .acc-arrow{transform:rotate(90deg)}
+.acc-bd{padding:16px 18px}
+.acc-bd h3{font-size:13px;font-weight:700;color:#2C4A6E;margin:16px 0 6px;text-transform:uppercase;letter-spacing:.04em}
+.acc-bd p{margin:0 0 8px;font-size:14px}
+.acc-bd blockquote{background:#f5f7fa;border-left:3px solid #2C4A6E;padding:8px 14px;margin:8px 0;font-size:13px;color:#444;border-radius:0 6px 6px 0}
+.acc-bd table{margin:10px 0}
 </style>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 </head>
@@ -732,16 +748,97 @@ function mdToHtml(s) {
 
 function mdParse(s) {
   s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" style="color:var(--blue);text-decoration:underline">$1</a>');
-  let h = s.replace(/^---$/gm,'<hr>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>').replace(/^[\-•] (.+)$/gm,'<li>$1</li>').replace(/^\d+\. (.+)$/gm,'<li>$1</li>');
-  h = h.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, m => '<ul>'+m+'</ul>');
-  h = h.replace(/((?:^\|.+\|\n?)+)/gm, table => {
-    const rows = table.trim().split('\n').filter(r => !/^\|[-:\s|]+\|$/.test(r));
-    if (rows.length < 1) return table;
-    return '<table>' + rows.map((r, i) => { const cells = r.split('|').slice(1,-1).map(c => c.trim()); const tag = i === 0 ? 'th' : 'td'; return '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>'; }).join('') + '</table>';
-  });
-  h = h.split('\n').map(l=>{l=l.trim();if(!l)return'';if(/^<(h[23]|ul|blockquote|hr)/.test(l))return l;return '<p>'+l+'</p>';}).join('\n');
-  h = h.replace(/(✅[^\n<]+)/g,'<span class="v-ok">$1</span>').replace(/(⚠️[^\n<]+)/g,'<span class="v-warn">$1</span>').replace(/(❌[^\n<]+)/g,'<span class="v-nok">$1</span>').replace(/(❓[^\n<]+)/g,'<span class="v-unk">$1</span>');
-  return h;
+
+  // Détecte les emojis de verdict pour les badges colorés
+  function colorVerdicts(h) {
+    return h
+      .replace(/(✅[^\n<]+)/g,'<span class="v-ok">$1</span>')
+      .replace(/(⚠️[^\n<]+)/g,'<span class="v-warn">$1</span>')
+      .replace(/(❌[^\n<]+)/g,'<span class="v-nok">$1</span>')
+      .replace(/(❓[^\n<]+)/g,'<span class="v-unk">$1</span>');
+  }
+
+  function renderMd(block) {
+    let h = block
+      .replace(/^---$/gm,'<hr>')
+      .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g,'<em>$1</em>')
+      .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>')
+      .replace(/^[\-•] (.+)$/gm,'<li>$1</li>')
+      .replace(/^\d+\. (.+)$/gm,'<li>$1</li>');
+    h = h.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, m => '<ul>'+m+'</ul>');
+    h = h.replace(/((?:^\|.+\|\n?)+)/gm, table => {
+      const rows = table.trim().split('\n').filter(r => !/^\|[-:\s|]+\|$/.test(r));
+      if (rows.length < 1) return table;
+      return '<table>' + rows.map((r, i) => {
+        const cells = r.split('|').slice(1,-1).map(c => c.trim());
+        const tag = i === 0 ? 'th' : 'td';
+        return '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
+      }).join('') + '</table>';
+    });
+    h = h.split('\n').map(l => {
+      l = l.trim();
+      if (!l) return '';
+      if (/^<(h3|ul|table|blockquote|hr)/.test(l)) return l;
+      return '<p>' + l + '</p>';
+    }).join('\n');
+    return colorVerdicts(h);
+  }
+
+  // Découpe en sections sur les titres ## (accordéon)
+  // La section ⓪ Synthèse est toujours ouverte, les autres fermées
+  const sectionRe = /^## (.+)$/gm;
+  const parts = [];
+  let last = 0, lastTitle = null, m;
+  while ((m = sectionRe.exec(s)) !== null) {
+    if (lastTitle !== null) parts.push({ title: lastTitle, body: s.slice(last, m.index) });
+    else if (last < m.index) parts.push({ title: null, body: s.slice(0, m.index) }); // texte avant le 1er ##
+    lastTitle = m[1];
+    last = m.index + m[0].length + 1;
+  }
+  if (lastTitle !== null) parts.push({ title: lastTitle, body: s.slice(last) });
+  else parts.push({ title: null, body: s }); // pas de ##
+
+  if (parts.length <= 1 || !parts.some(p => p.title)) {
+    // Pas de sections détectées → rendu classique
+    return renderMd(s);
+  }
+
+  let out = '';
+  let accIdx = 0;
+  for (const part of parts) {
+    if (!part.title) {
+      out += '<div class="acc-intro">' + renderMd(part.body) + '</div>';
+      continue;
+    }
+    const isFirst = accIdx === 0;
+    const id = 'acc-' + accIdx++;
+    // Extrait un badge de verdict du titre (✅ ⚠️ ❌ ❓) s'il y en a un dans les 2 premières lignes
+    const previewLine = part.body.trim().split('\n').find(l => /✅|⚠️|❌|❓/.test(l)) || '';
+    const badge = previewLine.match(/✅|⚠️|❌|❓/)?.[0] || '';
+    const badgeClass = badge === '✅' ? 'v-ok' : badge === '⚠️' ? 'v-warn' : badge === '❌' ? 'v-nok' : badge === '❓' ? 'v-unk' : '';
+    out += `<div class="acc-item${isFirst ? ' open' : ''}">
+  <button class="acc-hd" onclick="toggleAcc('${id}')">
+    <span class="acc-title">${part.title}</span>
+    ${badge ? `<span class="acc-badge ${badgeClass}">${badge}</span>` : ''}
+    <span class="acc-arrow">›</span>
+  </button>
+  <div class="acc-bd" id="${id}"${isFirst ? '' : ' style="display:none"'}>
+    ${renderMd(part.body)}
+  </div>
+</div>`;
+  }
+  return out;
+}
+
+function toggleAcc(id) {
+  const bd = document.getElementById(id);
+  const item = bd.closest('.acc-item');
+  const isOpen = item.classList.contains('open');
+  item.classList.toggle('open', !isOpen);
+  bd.style.display = isOpen ? 'none' : '';
+  item.querySelector('.acc-arrow').textContent = isOpen ? '›' : '‹';
 }
 
 function copyR(type) {
