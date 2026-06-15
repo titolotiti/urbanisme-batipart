@@ -386,14 +386,25 @@ export default async function handler(req, res) {
         if (best === -1) return null;
         const start = Math.max(0, best - 300);
         // 3. Fin de section : prochaine ZONE DIFFÉRENTE (ignore les en-têtes de page
-        //    qui répètent la zone courante)
-        let end = Math.min(start + 80000, text.length);
-        const reEnd = new RegExp('\\n\\s*ZONE\\s+([A-Z][A-Z0-9]*[a-z]*)\\b', 'g');
+        //    qui répètent la zone courante). Le regex couvre tous les formats d'ID :
+        //    - Précédés de "ZONE " : ZONE UPGE07, ZONE UAb, ZONE UG
+        //    - Sans préfixe "ZONE" : UPGE07 —, UPGE07.1, Article UPGE07
+        //    - Avec tiret ou point : UA-1, U.2
+        let end = Math.min(start + 160000, text.length);
+        const reEnd = new RegExp(
+          '\\n\\s*(?:' +
+            'ZONE\\s+([A-Z][A-Z0-9]*(?:[.\\-][A-Z0-9]+)*[a-z]?\\d*)' +      // "ZONE UPGE07"
+            '|CHAPITRE\\s+(?:ZONE\\s+)?([A-Z][A-Z0-9]*(?:[.\\-][A-Z0-9]+)*[a-z]?\\d*)' + // "CHAPITRE ZONE UA"
+            '|([A-Z]{2,}[A-Z0-9]*\\d+[a-z]?)\\s*[-–—:]' +                    // "UPGE07 —" ou "UPGE07:" (pas de point : évite "UPGE07.1")
+            '|Article\\s+([A-Z]{2,}[A-Z0-9]*\\d+[a-z]?)\\.?1\\b' +           // "Article UPGE07.1"
+          ')',
+          'g'
+        );
         reEnd.lastIndex = start + 500;
         let mm;
         while ((mm = reEnd.exec(text)) !== null && mm.index < end) {
-          const lbl = mm[1].toUpperCase();
-          if (lbl !== z.toUpperCase() && lbl !== base.toUpperCase()) { end = mm.index; break; }
+          const lbl = (mm[1] || mm[2] || mm[3] || mm[4] || '').toUpperCase();
+          if (lbl && lbl !== z.toUpperCase() && lbl !== base.toUpperCase()) { end = mm.index; break; }
         }
         console.log('Zone section: start=' + start + ' end=' + end + ' score=' + bestScore);
         return text.slice(start, end);
