@@ -205,7 +205,7 @@ export default async function handler(req, res) {
 
   const prompt = PROMPT
     .replace('{ZONE}', zone)
-    .replace('{COMMUNE}', communeInfo + planInfo + smsInfo)
+    .replace('{COMMUNE}', communeInfo + plansInfo + smsInfo)
     .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType)
     .replace('{PROJET}', projet ? '\nDescription du projet envisagé par le client (raisonne sur CE projet précis, notamment pour l\'applicabilité des servitudes en ③) : ' + String(projet).slice(0, 1500) : '');
 
