@@ -2,79 +2,98 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse/lib/pdf-parse.js');
 
-const PROMPT = `Tu es un expert en droit de l'urbanisme français travaillant pour un asset manager immobilier. Tu produis une ÉTUDE DE FAISABILITÉ RÉGLEMENTAIRE du niveau d'exigence d'une agence d'architecture (étude capacitaire réglementaire), pas un simple résumé.
-Voici les extraits du règlement PLU pour la zone {ZONE}{COMMUNE}.
+const PROMPT = `Tu es un expert en droit de l'urbanisme français travaillant pour un asset manager immobilier.
+
+Voici les extraits du règlement PLU/PLUi pour la zone {ZONE}{COMMUNE}.
 Opération étudiée : {OPERATION}{PROJET}
 
-IMPORTANT : Dans un PLUi, les règles sont définies par zone (pas par commune) — elles s'appliquent identiquement à toute parcelle de cette zone, quelle que soit la commune. Analyse les règles de la zone indiquée sans filtrer par commune.
-Si tu mentionnes un plan graphique, un plan de zonage ou un document cartographique, inclus TOUJOURS le lien de téléchargement fourni ci-dessus directement dans ta réponse sous la forme : [↗ Télécharger le plan graphique]({URL})
+RÈGLE ABSOLUE : cite UNIQUEMENT les dispositions présentes dans les extraits. Ne jamais inventer, reconstituer ou extrapoler. Si une information est absente : écrire "Information non trouvée dans les documents analysés" — jamais "Non applicable".
 
-# ÉTUDE DE FAISABILITÉ RÉGLEMENTAIRE
+IMPORTANT PLUi : les règles sont définies par zone, pas par commune. Analyse toutes les dispositions de la zone {ZONE} sans filtrer par commune.
 
-## ⓪ Synthèse
-**Verdict global :** ✅ Possible / ⚠️ Sous conditions / ❌ Interdit / ❓ Non déterminable sur les extraits
-3-4 phrases : ce qui est faisable, les 2-3 contraintes majeures, le point le plus discriminant.
+Si tu cites un plan graphique ou document cartographique, inclus TOUJOURS son lien sous la forme : [↗ Nom du plan](URL)
 
-## ① Destinations et faisabilité de l'opération
-Destinations autorisées/interdites/sous conditions dans la zone, et verdict motivé pour l'opération étudiée.
-> *Page XX — Article YY :* "Passage exact."
+---
 
-## ② Règles morphologiques (tableau exhaustif)
-Pour CHAQUE thème ci-dessous présent dans les extraits, donne la règle chiffrée exacte avec citation. Si un thème est absent des extraits, écris "Information non trouvée dans les documents analysés" (ne saute pas le thème) :
-- **Implantation / voies et emprises publiques** (alignement, recul)
-- **Limites séparatives** (retraits L=H/2, baies principales/secondaires)
-- **Emprise au sol** (%)
-- **Hauteurs** (hauteur de façade, couronnement/attique, hauteur totale, niveaux)
-- **Saillies, balcons, oriels sur domaine public** (dimensions, hauteur minimale, % de façade)
-- **Pleine terre / CBS / espaces verts** (%, coefficients)
-- **Stationnement** (voitures et vélos par destination, et toute possibilité de dérogation/mutualisation)
-> *Page XX — Article YY :* "Passage exact." (pour chaque règle)
+# ANALYSE RÉGLEMENTAIRE — 4 VOLETS OBLIGATOIRES
 
-## ③ Contrôles réglementaires obligatoires — trois volets SYSTÉMATIQUES
+## ① Destinations — Habitation
+Statut de la destination **Habitation** dans la zone :
+- Sous-destination **Logement** : ✅ Autorisé / ⚠️ Sous conditions / ❌ Interdit
+- Sous-destination **Hébergement** : ✅ Autorisé / ⚠️ Sous conditions / ❌ Interdit
 
-> OBLIGATION ABSOLUE : ces trois volets doivent TOUJOURS être traités et apparaître dans l'étude, même si l'information semble absente de la section de zone. Des extraits thématiques dédiés sont fournis ci-dessous — cherche-y avant de conclure. Si aucune information n'est trouvée après recherche exhaustive, écrire TOUJOURS : "Information non trouvée dans les documents analysés" — JAMAIS "Non applicable".
+Pour chaque verdict : cite l'article et le texte exact. Si sous conditions : précise les conditions exactes.
+> *Article XX :* "Texte exact."
 
-### ③-A Taille minimale des logements
-**CHERCHER impérativement** : STML, taille minimale, superficie minimale, surface minimale, surface de plancher minimale, taille et capacité d'accueil, répartition T1/T2/T3/T4/T5, % de grands logements, % de logements de type X, unité foncière minimale, lot minimal, division foncière. Chercher aussi dans les dispositions générales et pas seulement dans la section de zone.
-- **Résultat :** Trouvé / **Information non trouvée dans les documents analysés**
-- Si trouvé : seuil de déclenchement (nb logements ou m² SDP), % imposé par type, article exact
-- **Verdict d'applicabilité :** ✅ Applicable / ⚠️ Ambiguë (à confirmer) / ❌ Non applicable
-- Raisonnement sur le champ d'application exact (mots-clés : "constructions à édifier", "nouvelles constructions", "opérations de reconstruction", "surfaces nouvellement créées")
-> *Page XX — Article YY :* "Passage exact."
+---
 
-### ③-B Mixité sociale (logements sociaux / SMS / L151-15)
-**CHERCHER impérativement TOUS ces termes** : SMS, Secteur de Mixité Sociale, Servitude de Mixité Sociale, mixité sociale, logements sociaux, logements locatifs sociaux, part minimale de logements sociaux, pourcentage de logements sociaux, diversité de l'habitat, mixité de l'habitat, objectif de mixité sociale, L151-15, L.151-15, article L302, servitude logement, programme de logements sociaux, obligation de logements sociaux, part de logements abordables, accessibles, aidés. Faire aussi une recherche sémantique sur le concept d'obligation de quota de LLS même sans ces termes exacts.
-- **Résultat :** Trouvé / **Information non trouvée dans les documents analysés**
-- Si trouvé : % de LLS imposé, seuil de déclenchement (m² SDP ou nb logements), types de LLS (PLAI/PLUS/PLS), champ d'application exact
-- **Statut cartographique :** à vérifier sur le plan de mixité sociale (voir ⑥) — la localisation de la parcelle dans un périmètre SMS ne peut être confirmée que cartographiquement
-- **Verdict d'applicabilité :** ✅ Applicable / ⚠️ Ambiguë (à confirmer) / ❌ Non applicable
-- Raisonnement obligatoire : une surélévation ou un changement de destination pur n'est ni une "construction à édifier" ni une "reconstruction" au sens strict — si le règlement emploie ces seuls termes, la servitude est probablement inapplicable, à confirmer par la collectivité
-> *Page XX — Article YY :* "Passage exact."
+## ② Mixité sociale (SMS / logements sociaux)
+**Rechercher OBLIGATOIREMENT tous ces termes dans les extraits :**
+SMS, Secteur de Mixité Sociale, Servitude de Mixité Sociale, logements sociaux, logements locatifs sociaux, part minimale de logements sociaux, L151-15, L.151-15, diversité de l'habitat, objectif de mixité, programme de logements sociaux, obligation de logements aidés, logements abordables.
 
-### ③-C Mixité fonctionnelle (% logement / % commerce / RDC actif)
-**CHERCHER impérativement** : mixité fonctionnelle, diversité fonctionnelle, mixité des destinations, linéaire commercial, linéaire de protection du commerce, linéaire de développement, rez-de-chaussée actif, RDC actif, animation commerciale, protection du commerce, protection de l'artisanat, obligation de commerce, obligation d'activité, % logement / % commerce imposé, quote-part, proportion de destinations, sous-destination obligatoire en RDC, destination imposée.
-- **Résultat :** Trouvé / **Information non trouvée dans les documents analysés**
-- Si trouvé : % de logement imposé, % de commerce ou activité imposé, linéaires concernés sur le plan, seuil de déclenchement
-- **Verdict d'applicabilité :** ✅ Applicable / ⚠️ Ambiguë / ❌ Non applicable
-> *Page XX — Article YY :* "Passage exact."
+**Résultat :** Trouvé ✅ / Information non trouvée dans les documents analysés
 
-## ④ Dispositions favorables mobilisables
-Recherche activement dans les extraits : bonus de constructibilité, hauteur complémentaire (ex. surélévation + rénovation énergétique), majorations pour logement, dérogations de stationnement (ex. au profit de caves/celliers), règles alternatives pour constructions existantes. Pour chacune : conditions exactes et gain potentiel.
-> *Page XX — Article YY :* "Passage exact."
+**Si trouvé, détailler OBLIGATOIREMENT :**
+- % de logements sociaux imposé
+- Types exigés (PLAI / PLUS / PLS)
+- Seuil de déclenchement (m² SDP ou nombre de logements)
+- Champ d'application EXACT : reproduire mot pour mot les termes ("nouvelles constructions", "opérations de reconstruction", "surfaces nouvellement créées", etc.)
+- **Applicabilité à l'opération :** ✅ Applicable / ⚠️ Ambiguë / ❌ Non applicable
+- **Raisonnement obligatoire :** un changement de destination pur sans création de surface n'est pas forcément une "construction à édifier" ou une "reconstruction" — analyser les termes exacts et conclure
 
-## ⑤ Points de vigilance et ambiguïtés
-Formulations ambiguës du règlement, marges d'interprétation de la collectivité, contradictions entre dispositions, et ce qu'il faut faire confirmer PAR ÉCRIT avant d'engager des études. Sois critique comme le serait un architecte-conseil.
+**Statut cartographique :** la présence de la parcelle dans un périmètre SMS ne peut être confirmée que sur le plan de mixité sociale — indiquer le lien vers ce plan s'il est disponible.
+> *Article XX :* "Texte exact."
 
-## ⑥ Vérifications cartographiques requises
-Liste précise des plans à consulter (zonage, hauteurs, SMS, emplacements réservés, PPRI...) et ce qu'il faut y vérifier pour cette adresse. Utilise les liens fournis selon les règles ci-dessus.
+---
 
-## ⑦ Questions à poser à la collectivité
-3 à 6 questions précises, prêtes à envoyer au service urbanisme, ciblées sur les ambiguïtés identifiées en ③ et ⑤.
+## ③ Taille minimale des logements
+**Rechercher OBLIGATOIREMENT tous ces termes dans les extraits :**
+STML, taille minimale, superficie minimale, surface minimale, surface de plancher minimale, taille et capacité d'accueil, répartition T1/T2/T3/T4/T5, % de grands logements, % de logements de type X, division foncière, lot minimal.
 
-RÈGLES DE RIGUEUR :
-- Texte EXACT entre guillemets, toujours avec page et article. Ne JAMAIS inventer ni "reconstituer" une règle absente des extraits : écris "Information non trouvée dans les documents analysés" — jamais "Non applicable".
-- Distingue toujours ce que dit le règlement (citation) de ton analyse (raisonnement).
-- Ne commence pas par un avertissement préalable. Lance-toi directement dans l'étude.`;
+**Résultat :** Trouvé ✅ / Information non trouvée dans les documents analysés
+
+**Si trouvé, détailler OBLIGATOIREMENT :**
+- Superficie minimale par logement (m² SDP ou SHAB)
+- Répartition obligatoire par type (ex: min 30% de T3+)
+- Seuil de déclenchement (nb logements ou m² SDP)
+- Champ d'application exact
+- **Applicabilité à l'opération :** ✅ / ⚠️ / ❌ avec raisonnement
+> *Article XX :* "Texte exact."
+
+---
+
+## ④ Mixité fonctionnelle
+**Rechercher OBLIGATOIREMENT tous ces termes dans les extraits :**
+mixité fonctionnelle, linéaire commercial, linéaire de protection, rez-de-chaussée actif, RDC actif, animation commerciale, protection du commerce, protection de l'artisanat, obligation de commerce, % logement / % commerce imposé, quote-part, sous-destination obligatoire en RDC, destination imposée.
+
+**Résultat :** Trouvé ✅ / Information non trouvée dans les documents analysés
+
+**Si trouvé, détailler OBLIGATOIREMENT :**
+- % de logement imposé (minimum ou maximum)
+- % de commerce / activité imposé
+- Linéaires commerciaux concernés (avec lien vers le plan si disponible)
+- Seuil de déclenchement
+- **Applicabilité à l'opération :** ✅ / ⚠️ / ❌ avec raisonnement
+> *Article XX :* "Texte exact."
+
+---
+
+## ⑤ Stationnement
+**Rechercher dans les extraits :**
+Places de stationnement, parking, véhicules, vélos, stationnement logement, stationnement hébergement, norme de stationnement, dérogation stationnement.
+
+**Résultat :** Trouvé ✅ / Information non trouvée dans les documents analysés
+
+**Si trouvé, détailler :**
+- Norme voitures : X place(s) par logement (préciser par type T1/T2/T3+ si différencié)
+- Norme vélos : X m² ou X place(s) par logement
+- Dérogations possibles (proximité transports, mutualisation, caves/celliers)
+- **Applicabilité à l'opération :** ✅ / ⚠️ / ❌
+> *Article XX :* "Texte exact."
+
+---
+
+RAPPEL FINAL : pour chaque volet, si l'information n'est pas dans les extraits fournis → "Information non trouvée dans les documents analysés". Ne jamais écrire "Non applicable". Commence directement par le volet ①.`;
 
 const OPERATIONS = {
   destination: "Changement de destination — bureaux → logements, bâtiment existant",
@@ -631,26 +650,27 @@ export default async function handler(req, res) {
       ]);
 
       // Fusion — avec instructions explicites sur les 3 volets obligatoires
-      const fusionPrompt = `Tu as produit deux analyses partielles du règlement PLU zone "${zone}" (partie 1 = premiers articles, partie 2 = derniers articles). Fusionne-les en une seule étude complète et cohérente.
+      const fusionPrompt = `Tu as produit deux analyses partielles du règlement PLU zone "${zone}" (partie 1 = premiers articles, partie 2 = derniers articles). Fusionne-les en une seule analyse complète et cohérente.
 
 RÈGLES DE FUSION :
 - Conserve TOUTES les informations des deux parties — ne supprime rien.
-- Si une règle apparaît dans les deux parties avec des informations complémentaires, combine-les en une seule entrée.
-- Si une règle apparaît dans les deux parties de façon contradictoire, signale-le en ⚠️.
-- Respecte exactement la structure de l'étude (sections ⓪ à ⑦).
-- La synthèse ⓪ doit refléter l'ensemble des deux parties.
-- Conserve toutes les citations exactes (page, article, texte entre guillemets).
+- Si une règle apparaît dans les deux parties avec des informations complémentaires, combine-les.
+- Si contradiction : signale en ⚠️.
+- Conserve toutes les citations exactes (article, texte entre guillemets).
+- Respecte la structure en 5 volets : ① Destinations, ② Mixité sociale, ③ Taille minimale, ④ Mixité fonctionnelle, ⑤ Stationnement.
 
-OBLIGATION ABSOLUE sur les 3 volets — la fusion doit impérativement contenir :
-- **③-A Taille minimale des logements** : STML, superficie minimale, répartition T1/T2/T3+, seuil de déclenchement, verdict d'applicabilité. Si non trouvé : "Information non trouvée dans les documents analysés" — jamais "Non applicable".
-- **③-B Mixité sociale (SMS / L151-15 / logements sociaux)** : % de LLS, seuil de déclenchement, champ d'application exact, verdict d'applicabilité au projet. Si non trouvé : "Information non trouvée dans les documents analysés".
-- **③-C Mixité fonctionnelle** : % logement/commerce imposé, linéaires commerciaux, rez-de-chaussée actif, seuil. Si non trouvé : "Information non trouvée dans les documents analysés".
+OBLIGATION ABSOLUE : chaque volet doit apparaître dans la fusion avec :
+- ② Mixité sociale : % LLS, seuil, champ d'application exact, applicabilité. Si absent : "Information non trouvée dans les documents analysés".
+- ③ Taille minimale : STML, superficie, répartition T1/T2/T3+, seuil, applicabilité. Si absent : "Information non trouvée dans les documents analysés".
+- ④ Mixité fonctionnelle : % logement/commerce, linéaires, RDC actif, applicabilité. Si absent : "Information non trouvée dans les documents analysés".
+- ⑤ Stationnement : normes voitures et vélos, dérogations. Si absent : "Information non trouvée dans les documents analysés".
+Jamais "Non applicable".
 
 --- ANALYSE PARTIE 1 ---
-${result1}
+\${result1}
 
 --- ANALYSE PARTIE 2 ---
-${result2}`;
+\${result2}`;
 
       console.log('Appel fusion...');
       analysisText = await callClaude(fusionPrompt);
