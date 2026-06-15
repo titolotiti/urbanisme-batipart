@@ -30,11 +30,27 @@ Pour CHAQUE thème ci-dessous présent dans les extraits, donne la règle chiffr
 - **Stationnement** (voitures et vélos par destination, et toute possibilité de dérogation/mutualisation)
 > *Page XX — Article YY :* "Passage exact." (pour chaque règle)
 
-## ③ Servitudes de mixité et leur APPLICABILITÉ à l'opération
-C'est le cœur de l'étude. Pour chaque servitude trouvée (Secteur de Mixité Sociale, Secteur de Taille Minimale de Logements, mixité fonctionnelle, linéaire commercial) :
-1. Cite la règle exacte avec ses seuils (m² de SDP, nombre de logements, %).
-2. Analyse les TERMES EXACTS de son champ d'application ("constructions à édifier", "opérations de reconstruction", "surfaces nouvellement créées"...) et conclus si elle s'applique ou non à l'opération étudiée. Exemple de raisonnement attendu : une surélévation d'un bâtiment conservé n'est ni une "construction à édifier" ni une "reconstruction" — si le règlement emploie ces seuls termes, la servitude est probablement inapplicable, à faire confirmer par la collectivité.
-3. Verdict par servitude : ✅ Applicable / ⚠️ Applicabilité ambiguë (à confirmer) / ❌ Non applicable.
+## ③ Obligations de mixité — trois volets OBLIGATOIRES
+
+> Ces trois volets sont TOUJOURS à traiter, même si l'information semble absente : des extraits thématiques spécifiques ont été ajoutés en fin de contexte. Cherche-y les dispositions avant de conclure à une absence.
+
+### ③-A Taille minimale des logements (STML / superficie / typologie)
+Cherche dans les extraits : taille minimale de logement (m² de SDP ou SHAB), répartition obligatoire par type (T1/T2/T3+, studios, grands logements), secteur de taille minimale (STML ou équivalent), seuil de déclenchement (nombre de logements ou m²).
+- **Règle trouvée :** citation exacte avec seuils chiffrés, OU "Non présent dans les extraits transmis"
+- **Applicable à cette opération :** ✅ / ⚠️ / ❌ — avec le raisonnement sur le champ d'application exact
+> *Page XX — Article YY :* "Passage exact."
+
+### ③-B Secteur de Mixité Sociale (SMS / L151-15 / logements sociaux)
+Cherche : nom exact du secteur (SMS, ISMH, secteur de diversité...), % de LLS exigé, seuil de déclenchement (m² SDP ou nombre de logements), types de LLS exigés (PLAI/PLUS/PLS), champ d'application exact ("constructions à édifier", "reconstruction", "surfaces nouvellement créées"...).
+- **Statut de la parcelle :** cartographique — à vérifier sur le plan de mixité sociale (voir ⑥)
+- **Règle du secteur applicable :** citation exacte avec % et seuils, OU "Non présent dans les extraits transmis"
+- **Applicable à cette opération :** ✅ / ⚠️ / ❌ — analyser les termes exacts du champ d'application (un changement de destination pur sans création de surface n'est pas toujours une "construction à édifier")
+> *Page XX — Article YY :* "Passage exact."
+
+### ③-C Mixité fonctionnelle (% logement / % commerce / linéaire commercial)
+Cherche : obligation de % de logement minimum ou maximum dans les opérations, obligation de % de commerce / activité / rez-de-chaussée actif, linéaires commerciaux à préserver ou développer, seuil de déclenchement, champ d'application.
+- **Règle trouvée :** citation exacte avec % et seuils, OU "Non présent dans les extraits transmis"
+- **Applicable à cette opération :** ✅ / ⚠️ / ❌
 > *Page XX — Article YY :* "Passage exact."
 
 ## ④ Dispositions favorables mobilisables
@@ -438,27 +454,54 @@ export default async function handler(req, res) {
       } catch (e) { return null; }
     }
 
-    const generalText = fullText.slice(0, 40000);  // doublé : 20k→40k (dispositions générales souvent longues)
+    const generalText = fullText.slice(0, 40000);
     const zoneSection = extractZoneSection(fullText, zone, baseZone);
-    const mixiteSection = extractTopicSection(fullText, 'mixit[ée]\\s+sociale|logements?\\s+locatifs?\\s+sociaux|L\\.?\\s*151-15|servitude\\s+de\\s+mixit[ée]|secteurs?\\s+de\\s+mixit[ée]');
-    // N'ajoute la section mixité que si elle n'est pas déjà couverte par les
-    // extraits envoyés (évite les doublons)
-    const mixiteProbe = mixiteSection ? mixiteSection.slice(2000, 2400) : null;
-    const mixiteNeeded = mixiteSection && mixiteProbe && !(generalText.includes(mixiteProbe) || (zoneSection || '').includes(mixiteProbe));
+
+    // ── Extracteurs thématiques transversaux ────────────────────────────────
+    // Ces trois volets sont souvent dans des chapitres séparés de la section de
+    // zone — on localise le cluster le plus dense pour chacun.
+
+    // 1. Mixité sociale (SMS, L151-15, logements sociaux)
+    const mixiteSection = extractTopicSection(fullText,
+      'mixit[ée]\\s+sociale|logements?\\s+locatifs?\\s+sociaux|L\\.?\\s*151-15|servitude\\s+de\\s+mixit[ée]|secteurs?\\s+de\\s+mixit[ée]|secteur\\s+SMS|objectif\\s+de\\s+mixit[ée]');
+
+    // 2. Taille minimale de logements (STML, T1/T2/T3/T4, surface minimale, typologie)
+    const tailleSection = extractTopicSection(fullText,
+      'taille\\s+minimale|surface\\s+minimale\\s+(?:des?\\s+)?logements?|typ(?:e|ologie)\\s+(?:de\\s+)?logements?\\s*:?\\s*(?:T[1-5]|\\d\\s*pi[èe]ces?)|STML|taille\\s+et\\s+capacit[ée]|r[ée]partition\\s+(?:des?\\s+)?logements?|minimum\\s+de\\s+T[1-5]|au\\s+moins\\s+\\d+\\s*%\\s*(?:de\\s+)?(?:logements?|T[1-5])');
+
+    // 3. Mixité fonctionnelle (% logement/commerce, rez-de-chaussée actif, linéaire commercial)
+    const mixiteFoncSection = extractTopicSection(fullText,
+      'mixit[ée]\\s+fonctionnelle|lin[ée]aire\\s+(?:de\\s+)?(?:commerces?|activit[ée]s?)|rez-de-chauss[ée]e\\s+(?:actif|commercial)|destination\\s+(?:obligatoire|impos[ée]e?).*(?:commerce|activit[ée])|(?:part|quote-?part|proportion)\\s+(?:de\\s+)?(?:logements?|bureaux|commerces?)|obligation\\s+de\\s+(?:commerces?|activit[ée]s?)|r[ée]partition\\s+(?:des?\\s+)?(?:surfaces?|destinations?)');
+
+    // Fonction de déduplication : n'ajoute une section que si elle n'est pas
+    // déjà couverte par le texte déjà envoyé
+    function addIfNew(existing, section) {
+      if (!section) return false;
+      const probe = section.slice(2000, 2400);
+      return probe && !existing.includes(probe);
+    }
 
     let sendText;
     if (zoneSection) {
       sendText = generalText + '\n\n--- ZONE ' + zone + ' ---\n\n' + zoneSection;
       console.log('Zone trouvée:', zoneSection.length, 'chars');
     } else {
-      // Fallback : 3 tranches couvrant l'ensemble du document (doublé : 130k→220k)
       const third = Math.floor(fullText.length / 3);
       sendText = fullText.slice(0, 80000) + '\n...\n' + fullText.slice(third, third + 80000) + '\n...\n' + fullText.slice(-60000);
       console.log('Zone non trouvée, découpage 3 parties');
     }
-    if (mixiteNeeded) {
-      sendText += '\n\n--- DISPOSITIONS MIXITÉ SOCIALE / LOGEMENTS SOCIAUX (extrait du règlement) ---\n\n' + mixiteSection;
+
+    if (addIfNew(sendText, mixiteSection)) {
+      sendText += '\n\n--- MIXITÉ SOCIALE / LOGEMENTS SOCIAUX ---\n\n' + mixiteSection;
       console.log('Section mixité sociale ajoutée:', mixiteSection.length, 'chars');
+    }
+    if (addIfNew(sendText, tailleSection)) {
+      sendText += '\n\n--- TAILLE MINIMALE / TYPOLOGIE DES LOGEMENTS ---\n\n' + tailleSection;
+      console.log('Section taille logements ajoutée:', tailleSection.length, 'chars');
+    }
+    if (addIfNew(sendText, mixiteFoncSection)) {
+      sendText += '\n\n--- MIXITÉ FONCTIONNELLE / LINÉAIRES COMMERCIAUX ---\n\n' + mixiteFoncSection;
+      console.log('Section mixité fonctionnelle ajoutée:', mixiteFoncSection.length, 'chars');
     }
     console.log('Texte envoyé:', sendText.length, 'chars');
 
