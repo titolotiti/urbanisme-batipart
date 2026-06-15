@@ -181,7 +181,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { zone, analysisType, pluUrl, pluBase64, commune, address, zonageUrl, planUrls, projet } = req.body;
+  const { zone, analysisType, pluUrl, pluBase64, commune, address, zonageUrl, planUrls, projet, smsData } = req.body;
   console.log('Params:', { zone, commune, address: address?.slice(0, 40), projet: projet?.slice(0, 60) });
 
   if (!zone || !analysisType || (!pluUrl && !pluBase64)) return res.status(400).json({ error: 'Paramètres manquants' });
@@ -194,10 +194,18 @@ export default async function handler(req, res) {
       planUrls.map(p => `- ${p.nom} : ${p.url}`).join('\n') +
       '\nQuand tu mentionnes un plan (mixité sociale, zonage, emplacements réservés, hauteurs...), utilise UNIQUEMENT le lien dont le nom correspond au sujet. Si aucun plan listé ne correspond au sujet (nom générique "Plan graphique N" ou sujet absent de la liste), ne mets PAS de lien de téléchargement et ne devine JAMAIS quel numéro de plan correspond à quel contenu : indique à la place de consulter le plan recherché en le nommant précisément (ex: "le plan de mixité sociale", "le plan des hauteurs") sur la visionneuse GPU ou sur le site de la commune' + (commune ? ` de ${commune}` : '') + ' / de l\'intercommunalité (rubrique urbanisme ou PLU).'
     : (zonageUrl ? `\nPlan graphique : ${zonageUrl}` : '');
-  const planInfo = plansInfo;
+  // Info SMS cartographique (récupérée depuis APICarto GPU info-surf)
+  const smsInfo = smsData && smsData.length > 0
+    ? '\n\n⚠️ DONNÉE CARTOGRAPHIQUE CONFIRMÉE — Cette parcelle est située dans un SECTEUR DE MIXITÉ SOCIALE : ' +
+      smsData.map(s => s.libelle).join(', ') +
+      '. Tu n\'as pas besoin de dire "à vérifier cartographiquement" pour ce point — c\'est confirmé. Analyse l\'applicabilité de la règle SMS de ce secteur à l\'opération.'
+    : smsData !== null && smsData !== undefined
+      ? '\n\n✅ DONNÉE CARTOGRAPHIQUE CONFIRMÉE — Cette parcelle n\'est dans AUCUN secteur de mixité sociale (SMS) selon le Géoportail de l\'Urbanisme. Pas d\'obligation de logements sociaux liée à la localisation de la parcelle.'
+      : '';
+
   const prompt = PROMPT
     .replace('{ZONE}', zone)
-    .replace('{COMMUNE}', communeInfo + planInfo)
+    .replace('{COMMUNE}', communeInfo + planInfo + smsInfo)
     .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType)
     .replace('{PROJET}', projet ? '\nDescription du projet envisagé par le client (raisonne sur CE projet précis, notamment pour l\'applicabilité des servitudes en ③) : ' + String(projet).slice(0, 1500) : '');
 
