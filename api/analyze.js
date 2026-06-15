@@ -506,18 +506,43 @@ export default async function handler(req, res) {
     let analysisText;
 
     if (zoneSection && zoneSection.length > ZONE_SPLIT) {
-      // ── Découpage en deux moitiés avec chevauchement de 5000 chars ──────
-      const overlap = 5000;
-      const mid = Math.floor(zoneSection.length / 2);
-      const part1 = zoneSection.slice(0, mid + overlap);
-      const part2 = zoneSection.slice(mid - overlap);
-
       console.log('Zone longue (' + zoneSection.length + ' chars) → 2 appels parallèles');
 
-      const baseContext = generalText + '\n\n';
+      // ── Découpage propre ENTRE deux articles ─────────────────────────────
+      // On cherche le séparateur d'article le plus proche du milieu pour ne
+      // jamais couper un article en deux. Patterns reconnus :
+      // "Article UG.2", "UG.2 —", "2. Implantation", "CHAPITRE 2"
+      const mid = Math.floor(zoneSection.length / 2);
+      const SEARCH_WINDOW = 20000; // cherche dans ±20k autour du milieu
+      const searchStart = Math.max(0, mid - SEARCH_WINDOW);
+      const searchEnd = Math.min(zoneSection.length, mid + SEARCH_WINDOW);
+      const searchZone = zoneSection.slice(searchStart, searchEnd);
 
-      // Sections thématiques : injectées dans LES DEUX parties
-      // pour que chaque analyse voit les 3 volets obligatoires (③-A, ③-B, ③-C)
+      // Tous les séparateurs d'articles dans la fenêtre de recherche
+      const artSepRe = /\n(?:Article\s+[\w.]+|[\w]{2,}\.[\d]+[\s.—:-]|Chapitre\s+\d|SECTION\s+\d|\d+\.\s+[A-ZÀÉÈÊ])/g;
+      const seps = [];
+      let sm;
+      while ((sm = artSepRe.exec(searchZone)) !== null) {
+        seps.push(searchStart + sm.index);
+      }
+
+      // Prend le séparateur le plus proche du milieu
+      let cutPoint = mid;
+      if (seps.length > 0) {
+        cutPoint = seps.reduce((best, pos) =>
+          Math.abs(pos - mid) < Math.abs(best - mid) ? pos : best, seps[0]);
+        console.log('Coupure propre à', cutPoint, '(milieu:', mid, ', écart:', Math.abs(cutPoint - mid), 'chars)');
+      } else {
+        console.log('Aucun séparateur trouvé → coupure au milieu');
+      }
+
+      const part1 = zoneSection.slice(0, cutPoint);
+      const part2 = zoneSection.slice(cutPoint);
+
+      const baseContext = generalText.slice(0, 20000) + '\n\n';
+
+      // Sections thématiques : cap à 10 000 chars chacune.
+      const THEMATIC_CAP = 10000;
       const THEMATIC_ITEMS = [
         { label: 'TAILLE MINIMALE / TYPOLOGIE DES LOGEMENTS (③-A)', section: tailleSection },
         { label: 'MIXITÉ SOCIALE / LOGEMENTS SOCIAUX (③-B)', section: mixiteSection },
@@ -525,27 +550,21 @@ export default async function handler(req, res) {
       ];
       let thematicText = '';
       for (const { label, section } of THEMATIC_ITEMS) {
-        if (!section) {
-          console.log('Section', label, ': non trouvée dans le règlement');
-          continue;
-        }
-        if (thematicText.length + section.length > 50000) {
-          console.log('Section', label, ': ignorée (plafond thématique 50k atteint)');
-          break;
-        }
-        thematicText += '\n\n--- ' + label + ' ---\n\n' + section;
-        console.log('Section', label, 'ajoutée:', section.length, 'chars');
+        if (!section) { console.log('Section', label, ': non trouvée'); continue; }
+        const capped = section.slice(0, THEMATIC_CAP);
+        thematicText += '\n\n--- ' + label + ' ---\n\n' + capped;
+        console.log('Section', label, 'ajoutée:', capped.length, 'chars');
       }
 
-      const thematicNote = '\n\nATTENTION — OBLIGATION ABSOLUE : les extraits thématiques ci-dessous contiennent les informations pour les volets ③-A (taille minimale logements), ③-B (mixité sociale) et ③-C (mixité fonctionnelle). Tu DOIS traiter ces trois volets dans ta réponse avec les données de ces extraits, même si la section de zone ne les mentionne pas.';
+      const thematicNote = '\n\nATTENTION — OBLIGATION : traiter impérativement les volets ③-A (taille minimale logements), ③-B (mixité sociale) et ③-C (mixité fonctionnelle) avec les extraits thématiques ci-dessus.';
 
-      const promptPart1 = 'Voici les extraits du règlement PLU pour la zone "' + zone + '" (PARTIE 1/2 — articles du début de la section).\n\nRÈGLE ABSOLUE : ne cite et n\'utilise QUE les dispositions présentes dans les extraits ci-dessous.\n\n' +
+      const promptPart1 = 'Extraits du règlement PLU zone "' + zone + '" — PARTIE 1/2 (premiers articles).\nRÈGLE ABSOLUE : cite uniquement les dispositions présentes dans les extraits.\n\n' +
         baseContext + '--- ZONE ' + zone + ' — PARTIE 1/2 ---\n\n' + part1 + thematicText + thematicNote + '\n\n---\n\n' + prompt;
 
-      const promptPart2 = 'Voici les extraits du règlement PLU pour la zone "' + zone + '" (PARTIE 2/2 — articles de la fin de la section).\n\nRÈGLE ABSOLUE : ne cite et n\'utilise QUE les dispositions présentes dans les extraits ci-dessous.\n\n' +
+      const promptPart2 = 'Extraits du règlement PLU zone "' + zone + '" — PARTIE 2/2 (derniers articles).\nRÈGLE ABSOLUE : cite uniquement les dispositions présentes dans les extraits.\n\n' +
         baseContext + '--- ZONE ' + zone + ' — PARTIE 2/2 ---\n\n' + part2 + thematicText + thematicNote + '\n\n---\n\n' + prompt;
 
-      console.log('Appel 1:', (baseContext + part1 + thematicText).length, 'chars | Appel 2:', (baseContext + part2 + thematicText).length, 'chars');
+      console.log('Appel 1:', promptPart1.length, 'chars | Appel 2:', promptPart2.length, 'chars');
 
       // Appels en parallèle
       const [result1, result2] = await Promise.all([
