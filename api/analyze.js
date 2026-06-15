@@ -476,8 +476,69 @@ export default async function handler(req, res) {
     const d = await r.json();
     if (!r.ok) throw new Error(JSON.stringify(d.error));
 
+    let analysisText = d.content[0].text;
+
+    // ── INJECTION DES ARTICLES MANQUANTS ──────────────────────────────────────
+    // Si l'IA mentionne des articles dont le contenu n'est "pas reproduit dans
+    // les extraits" ou "non transmis", on les cherche dans fullText et on
+    // relance un appel pour compléter l'analyse.
+    const missingSignals = [
+      /son contenu (?:textuel )?(?:complet )?n['']est pas reproduit/i,
+      /n[''](?:est|a) pas (?:été )?(?:transmis?|reproduit|présent)/i,
+      /absent(?:s)? des extraits/i,
+      /ne figure(?:nt)? pas dans les extraits/i,
+      /non (?:présent|transmis?|reproduit) dans les extraits/i,
+    ];
+    const hasMissing = missingSignals.some(re => re.test(analysisText));
+
+    if (hasMissing && fullText) {
+      // Extrait les références d'articles mentionnés comme manquants
+      // ex: UG.1.4.2, article L151-15, article 3.5, 4.5.2.1.1
+      const artRefs = [...new Set([
+        ...(analysisText.match(/\b(?:article\s+)?([A-Z]{1,5}[\d.]+[\d.]+\w*)/gi) || []),
+        ...(analysisText.match(/article\s+([\d]+\.[\d.]+)/gi) || []),
+        ...(analysisText.match(/article\s+(L[\d]+-[\d]+)/gi) || []),
+      ])].map(r => r.replace(/^article\s+/i, '').trim()).filter(r => r.length > 2);
+
+      // Pour chaque référence, cherche le texte dans fullText
+      const found = [];
+      for (const ref of artRefs.slice(0, 6)) { // max 6 articles
+        const escaped = ref.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp('(?:' + escaped + ')([\\s\\S]{0,3000}?)(?=\\n(?:' + escaped.slice(0,-1) + '|ZONE |ARTICLE |CHAPITRE )|$)', 'i');
+        const m = re.exec(fullText);
+        if (m && m[0].length > 100) {
+          found.push({ ref, text: m[0].slice(0, 3000) });
+          console.log('Article manquant récupéré:', ref, '(' + m[0].slice(0,3000).length + ' chars)');
+        }
+      }
+
+      if (found.length > 0) {
+        const supplement = found.map(f => `=== ARTICLE ${f.ref} (récupéré depuis le règlement complet) ===\n${f.text}`).join('\n\n');
+        const completionPrompt = `L'analyse suivante signale des articles dont le contenu n'était pas dans les extraits initiaux. Voici ces articles extraits du règlement complet.\n\nRÈGLE ABSOLUE : complète UNIQUEMENT les sections où tu as signalé une lacune, en citant le texte exact fourni ci-dessous. Ne modifie pas les sections déjà complètes. Insère les nouvelles informations à leur place logique dans l'analyse.\n\n--- ARTICLES RÉCUPÉRÉS ---\n${supplement}\n\n--- ANALYSE À COMPLÉTER ---\n${analysisText}`;
+
+        const r2 = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 9000,
+            messages: [{ role: 'user', content: completionPrompt }]
+          })
+        });
+        const d2 = await r2.json();
+        if (r2.ok) {
+          analysisText = d2.content[0].text;
+          console.log('✓ Analyse complétée avec', found.length, 'article(s) manquant(s)');
+        } else {
+          console.log('Complétion échouée:', JSON.stringify(d2.error));
+        }
+      } else {
+        console.log('Articles manquants non trouvables dans fullText');
+      }
+    }
+
     console.log('✓ Analyse OK');
-    return res.status(200).json({ success: true, zone, analysisType, result: d.content[0].text });
+    return res.status(200).json({ success: true, zone, analysisType, result: analysisText });
 
   } catch(err) {
     console.error('Erreur:', err.message);
