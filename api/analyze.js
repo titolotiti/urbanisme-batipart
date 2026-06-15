@@ -481,45 +481,137 @@ export default async function handler(req, res) {
       return probe && !existing.includes(probe);
     }
 
-    let sendText;
-    if (zoneSection) {
-      sendText = generalText + '\n\n--- ZONE ' + zone + ' ---\n\n' + zoneSection;
-      console.log('Zone trouvée:', zoneSection.length, 'chars');
+    const MAX_SEND = 180000; // plafond par appel pour rester sous le timeout
+
+    // Si la section de zone est très longue, on la découpe en deux moitiés
+    // et on fait deux appels IA en parallèle → fusion des résultats.
+    // Aucun article n'est perdu.
+    const ZONE_SPLIT = 100000; // au-delà de ce seuil, on découpe
+
+    async function callClaude(promptText, systemNote = '') {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 9000,
+          messages: [{ role: 'user', content: promptText }]
+        })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(JSON.stringify(d.error));
+      return d.content[0].text;
+    }
+
+    let analysisText;
+
+    if (zoneSection && zoneSection.length > ZONE_SPLIT) {
+      // ── Découpage en deux moitiés avec chevauchement de 5000 chars ──────
+      const overlap = 5000;
+      const mid = Math.floor(zoneSection.length / 2);
+      const part1 = zoneSection.slice(0, mid + overlap);
+      const part2 = zoneSection.slice(mid - overlap);
+
+      console.log('Zone longue (' + zoneSection.length + ' chars) → 2 appels parallèles');
+
+      const baseContext = generalText + '\n\n';
+
+      // Sections thématiques : injectées dans LES DEUX parties
+      // pour que chaque analyse voit les 3 volets obligatoires (③-A, ③-B, ③-C)
+      const THEMATIC_ITEMS = [
+        { label: 'TAILLE MINIMALE / TYPOLOGIE DES LOGEMENTS (③-A)', section: tailleSection },
+        { label: 'MIXITÉ SOCIALE / LOGEMENTS SOCIAUX (③-B)', section: mixiteSection },
+        { label: 'MIXITÉ FONCTIONNELLE / LINÉAIRES COMMERCIAUX (③-C)', section: mixiteFoncSection },
+      ];
+      let thematicText = '';
+      for (const { label, section } of THEMATIC_ITEMS) {
+        if (!section) {
+          console.log('Section', label, ': non trouvée dans le règlement');
+          continue;
+        }
+        if (thematicText.length + section.length > 50000) {
+          console.log('Section', label, ': ignorée (plafond thématique 50k atteint)');
+          break;
+        }
+        thematicText += '\n\n--- ' + label + ' ---\n\n' + section;
+        console.log('Section', label, 'ajoutée:', section.length, 'chars');
+      }
+
+      const thematicNote = '\n\nATTENTION — OBLIGATION ABSOLUE : les extraits thématiques ci-dessous contiennent les informations pour les volets ③-A (taille minimale logements), ③-B (mixité sociale) et ③-C (mixité fonctionnelle). Tu DOIS traiter ces trois volets dans ta réponse avec les données de ces extraits, même si la section de zone ne les mentionne pas.';
+
+      const promptPart1 = 'Voici les extraits du règlement PLU pour la zone "' + zone + '" (PARTIE 1/2 — articles du début de la section).\n\nRÈGLE ABSOLUE : ne cite et n\'utilise QUE les dispositions présentes dans les extraits ci-dessous.\n\n' +
+        baseContext + '--- ZONE ' + zone + ' — PARTIE 1/2 ---\n\n' + part1 + thematicText + thematicNote + '\n\n---\n\n' + prompt;
+
+      const promptPart2 = 'Voici les extraits du règlement PLU pour la zone "' + zone + '" (PARTIE 2/2 — articles de la fin de la section).\n\nRÈGLE ABSOLUE : ne cite et n\'utilise QUE les dispositions présentes dans les extraits ci-dessous.\n\n' +
+        baseContext + '--- ZONE ' + zone + ' — PARTIE 2/2 ---\n\n' + part2 + thematicText + thematicNote + '\n\n---\n\n' + prompt;
+
+      console.log('Appel 1:', (baseContext + part1 + thematicText).length, 'chars | Appel 2:', (baseContext + part2 + thematicText).length, 'chars');
+
+      // Appels en parallèle
+      const [result1, result2] = await Promise.all([
+        callClaude(promptPart1),
+        callClaude(promptPart2),
+      ]);
+
+      // Fusion — avec instructions explicites sur les 3 volets obligatoires
+      const fusionPrompt = `Tu as produit deux analyses partielles du règlement PLU zone "${zone}" (partie 1 = premiers articles, partie 2 = derniers articles). Fusionne-les en une seule étude complète et cohérente.
+
+RÈGLES DE FUSION :
+- Conserve TOUTES les informations des deux parties — ne supprime rien.
+- Si une règle apparaît dans les deux parties avec des informations complémentaires, combine-les en une seule entrée.
+- Si une règle apparaît dans les deux parties de façon contradictoire, signale-le en ⚠️.
+- Respecte exactement la structure de l'étude (sections ⓪ à ⑦).
+- La synthèse ⓪ doit refléter l'ensemble des deux parties.
+- Conserve toutes les citations exactes (page, article, texte entre guillemets).
+
+OBLIGATION ABSOLUE sur les 3 volets de mixité — la fusion doit impérativement contenir :
+- **③-A Taille minimale des logements** : superficie minimale, répartition T1/T2/T3+, STML, seuil de déclenchement. Si non trouvé : "Non présent dans les extraits transmis".
+- **③-B Mixité sociale (SMS / L151-15)** : % de LLS, seuil de déclenchement, champ d'application exact, verdict d'applicabilité au projet. Si non trouvé : "Non présent dans les extraits transmis".
+- **③-C Mixité fonctionnelle** : % logement/commerce imposé, linéaires commerciaux, rez-de-chaussée actif, seuil. Si non trouvé : "Non présent dans les extraits transmis".
+
+--- ANALYSE PARTIE 1 ---
+${result1}
+
+--- ANALYSE PARTIE 2 ---
+${result2}`;
+
+      console.log('Appel fusion...');
+      analysisText = await callClaude(fusionPrompt);
+      console.log('✓ Fusion OK');
+
     } else {
-      const third = Math.floor(fullText.length / 3);
-      sendText = fullText.slice(0, 80000) + '\n...\n' + fullText.slice(third, third + 80000) + '\n...\n' + fullText.slice(-60000);
-      console.log('Zone non trouvée, découpage 3 parties');
+      // ── Cas standard : un seul appel ────────────────────────────────────
+      let sendText;
+      if (zoneSection) {
+        sendText = generalText + '\n\n--- ZONE ' + zone + ' ---\n\n' + zoneSection;
+        console.log('Zone trouvée:', zoneSection.length, 'chars');
+      } else {
+        const third = Math.floor(fullText.length / 3);
+        sendText = fullText.slice(0, 80000) + '\n...\n' + fullText.slice(third, third + 80000) + '\n...\n' + fullText.slice(-60000);
+        console.log('Zone non trouvée, découpage 3 parties');
+      }
+
+      for (const { label, section } of [
+        { label: 'MIXITÉ SOCIALE / LOGEMENTS SOCIAUX', section: mixiteSection },
+        { label: 'TAILLE MINIMALE / TYPOLOGIE DES LOGEMENTS', section: tailleSection },
+        { label: 'MIXITÉ FONCTIONNELLE / LINÉAIRES COMMERCIAUX', section: mixiteFoncSection },
+      ]) {
+        if (!addIfNew(sendText, section)) continue;
+        if (sendText.length + (section?.length || 0) > MAX_SEND) {
+          console.log('Section', label, 'ignorée (plafond atteint)');
+          break;
+        }
+        sendText += '\n\n--- ' + label + ' ---\n\n' + section;
+        console.log('Section', label, 'ajoutée:', section.length, 'chars');
+      }
+      console.log('Texte envoyé:', sendText.length, 'chars');
+
+      const fullPrompt = 'Voici les extraits du règlement PLU pour la zone "' + zone + '".\n\nRÈGLE ABSOLUE : ne cite et n\'utilise QUE les dispositions présentes dans les extraits ci-dessous. N\'invente ni ne "reconstitue" JAMAIS de règles à partir de règles-types, de PLU similaires ou de connaissances générales — en analyse réglementaire, une règle reconstituée est une erreur grave. Si une information n\'est pas dans les extraits, dis-le explicitement et renvoie au règlement complet.\n\n' + sendText + '\n\n---\n\n' + prompt;
+
+      analysisText = await callClaude(fullPrompt);
     }
 
-    if (addIfNew(sendText, mixiteSection)) {
-      sendText += '\n\n--- MIXITÉ SOCIALE / LOGEMENTS SOCIAUX ---\n\n' + mixiteSection;
-      console.log('Section mixité sociale ajoutée:', mixiteSection.length, 'chars');
-    }
-    if (addIfNew(sendText, tailleSection)) {
-      sendText += '\n\n--- TAILLE MINIMALE / TYPOLOGIE DES LOGEMENTS ---\n\n' + tailleSection;
-      console.log('Section taille logements ajoutée:', tailleSection.length, 'chars');
-    }
-    if (addIfNew(sendText, mixiteFoncSection)) {
-      sendText += '\n\n--- MIXITÉ FONCTIONNELLE / LINÉAIRES COMMERCIAUX ---\n\n' + mixiteFoncSection;
-      console.log('Section mixité fonctionnelle ajoutée:', mixiteFoncSection.length, 'chars');
-    }
-    console.log('Texte envoyé:', sendText.length, 'chars');
-
-    const fullPrompt = 'Voici les extraits du règlement PLU pour la zone "' + zone + '".\n\nRÈGLE ABSOLUE : ne cite et n\'utilise QUE les dispositions présentes dans les extraits ci-dessous. N\'invente ni ne "reconstitue" JAMAIS de règles à partir de règles-types, de PLU similaires ou de connaissances générales — en analyse réglementaire, une règle reconstituée est une erreur grave. Si une information n\'est pas dans les extraits, dis-le explicitement et renvoie au règlement complet.\n\n' + sendText + '\n\n---\n\n' + prompt;
-
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 9000,
-        messages: [{ role: 'user', content: fullPrompt }]
-      })
-    });
-    const d = await r.json();
-    if (!r.ok) throw new Error(JSON.stringify(d.error));
-
-    let analysisText = d.content[0].text;
+    // ── Détection et injection des articles manquants ────────────────────
 
     // ── INJECTION DES ARTICLES MANQUANTS ──────────────────────────────────────
     // Si l'IA mentionne des articles dont le contenu n'est "pas reproduit dans
