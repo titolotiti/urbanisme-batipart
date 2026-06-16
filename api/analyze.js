@@ -191,6 +191,11 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'Clé API non configurée' });
 
   const communeInfo = commune ? `\nCommune : ${commune}${address ? ' — ' + address : ''}` : '';
+
+  // Base de zone : lettres initiales + chiffre immédiat — ignore les indices
+  // Ex: U1-C-1→U1, UAb6e9→UA, UM1c3→UM1, UPGE06→UPGE06
+  const baseZone = (zone.match(/^([A-Z]+\d*)/)?.[1]) || zone;
+
   const plansInfo = (planUrls && planUrls.length)
     ? '\nPlans graphiques disponibles (liens de téléchargement) — le nom indiqué est le titre RÉEL du plan :\n' + 
       planUrls.map(p => `- ${p.nom} : ${p.url}`).join('\n') +
