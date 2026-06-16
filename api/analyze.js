@@ -722,6 +722,44 @@ ${result2}`;
         console.log('Zone non trouvée, découpage 3 parties');
       }
 
+      // ── Extraction par numéros d'articles référencés ─────────────────────
+    // Quand la section de zone cite "voir article 2.1", "article 8", etc.
+    // on va chercher directement ces articles dans fullText pour les injecter.
+    function extractArticleByRef(text, ref) {
+      // Cherche "Article X.Y" ou "Art. X.Y" ou "ARTICLE X.Y" suivi de son contenu
+      const escaped = ref.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const patterns = [
+        new RegExp(`(?:Article|Art\\.?)\\s*${escaped}[^\\n]*\\n([\\s\\S]{200,6000}?)(?=\\n\\s*(?:Article|Art\\.?)\\s*[\\d]|$)`, 'i'),
+        new RegExp(`${escaped}[\\s\\-–—:][^\\n]*\\n([\\s\\S]{200,6000}?)(?=\\n\\s*(?:Article|[A-Z]{2})\\s*[\\d]|$)`, 'i'),
+      ];
+      for (const re of patterns) {
+        const m = re.exec(text);
+        if (m && m[0].length > 200) return m[0].slice(0, 8000);
+      }
+      return null;
+    }
+
+    // Extraire les références d'articles depuis la section de zone
+    const zoneText = zoneSection || generalText;
+    const articleRefs = [...new Set(
+      (zoneText.match(/(?:article|art\.?)\s+([\d]+\.[\d.]*[\d])/gi) || [])
+        .map(r => r.replace(/^(?:article|art\.?)\s+/i, '').trim())
+    )].slice(0, 8);
+
+    const missingArticles = [];
+    for (const ref of articleRefs) {
+      const content = extractArticleByRef(fullText, ref);
+      if (content && !zoneText.includes(content.slice(100, 300))) {
+        missingArticles.push({ ref, content });
+        console.log('Article', ref, 'extrait par référence:', content.length, 'chars');
+      }
+    }
+
+    const articlesSupp = missingArticles.length > 0
+      ? '\n\n--- ARTICLES RÉFÉRENCÉS EXTRAITS DU RÈGLEMENT COMPLET ---\n\n' +
+        missingArticles.map(a => `=== Article ${a.ref} ===\n${a.content}`).join('\n\n')
+      : '';
+
       for (const { label, section } of [
         { label: 'MIXITÉ SOCIALE / LOGEMENTS SOCIAUX', section: mixiteSection },
         { label: 'TAILLE MINIMALE / TYPOLOGIE DES LOGEMENTS', section: tailleSection },
@@ -734,6 +772,12 @@ ${result2}`;
         }
         sendText += '\n\n--- ' + label + ' ---\n\n' + section;
         console.log('Section', label, 'ajoutée:', section.length, 'chars');
+      }
+
+      // Ajoute les articles extraits par référence s'ils ne sont pas déjà dans sendText
+      if (articlesSupp && addIfNew(sendText, articlesSupp)) {
+        sendText += articlesSupp;
+        console.log('Articles par référence ajoutés:', missingArticles.map(a => a.ref).join(', '));
       }
       console.log('Texte envoyé:', sendText.length, 'chars');
 
