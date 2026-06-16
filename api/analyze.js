@@ -228,7 +228,12 @@ export default async function handler(req, res) {
     // même si le serveur ne déclare pas de content-length. Rend impossible
     // la saturation mémoire (cf. règlement GPU Plaine Commune à 1,1 Go).
     async function downloadCapped(dlUrl, maxBytes) {
-      const r = await fetch(dlUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(new Error('timeout 120s')), 120000);
+      let r;
+      try {
+        r = await fetch(dlUrl, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: ctrl.signal });
+      } finally { clearTimeout(tid); }
       if (!r.ok) {
         console.log('Téléchargement échoué', r.status, 'sur:', dlUrl);
         throw new Error('Téléchargement échoué (' + r.status + ')');
@@ -350,7 +355,7 @@ export default async function handler(req, res) {
         const texts = [];
         for (const p of others.slice(0, 5)) {
           try {
-            const buf = await downloadWithRetry(p.url, MAX_PDF, 1);
+            const buf = await downloadWithRetry(p.url, MAX_PDF, 3);
             texts.push(await extractText(buf));
             console.log('Pièce utilisée:', p.name, '(' + Math.round(buf.length / 1048576) + ' Mo)');
           } catch (e) { console.log('Pièce ignorée:', p.name, '→', e.message); }
