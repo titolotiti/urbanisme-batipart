@@ -12,6 +12,7 @@ RÈGLES ABSOLUES :
 2. Si le règlement liste plusieurs cas (ex: indices A1/A2/A3, ou règles par commune), cite UNIQUEMENT le cas qui s'applique à {ZONE}. Si l'indice exact n'est pas déterminable sur les extraits, dis-le en une phrase et renvoie au plan graphique — ne liste pas tous les cas.
 3. Ne jamais inventer, reconstituer ou extrapoler. Si une information est absente : "Information non trouvée dans les documents analysés" — jamais "Non applicable".
 4. PLUi : les règles sont définies par zone. S'il existe des dispositions spécifiques à la zone {ZONE} ET des dispositions générales, combine-les. Ignore les dispositions des autres zones.
+5. TABLEAUX : certaines lignes contiennent des données tabulaires séparées par " | " — lis-les comme des colonnes de tableau. Ex: "Logement | 1 place/logement | 1,5 m²/logement" = une ligne de tableau avec 3 colonnes. Extrais les valeurs chiffrées de ces tableaux pour les volets stationnement, mixité et taille minimale.
 
 Si tu cites un plan graphique ou document cartographique, inclus TOUJOURS son lien sous la forme : [↗ Nom du plan](URL)
 
@@ -110,8 +111,53 @@ const FALLBACK_URLS = {
 
 // Extrait le texte d'un buffer PDF
 async function extractText(buffer) {
+  // Extraction standard
   const data = await pdfParse(buffer);
-  return data.text;
+  let text = data.text || '';
+
+  // Post-traitement : répare les tableaux mal extraits.
+  // pdf-parse sort parfois les colonnes dans le mauvais ordre.
+  // On détecte les blocs suspects (lignes très courtes qui se suivent
+  // avec des nombres intercalés) et on les reformate en colonnes.
+  text = repairTableBlocks(text);
+
+  return text;
+}
+
+// Répare les blocs de tableau où pdf-parse a mélangé les colonnes.
+// Heuristique : si on voit plusieurs lignes courtes (<60 chars) qui
+// forment un pattern "label / nombre / nombre", on les regroupe.
+function repairTableBlocks(text) {
+  const lines = text.split('\n');
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    // Détecte une séquence de lignes courtes ressemblant à un tableau
+    // (au moins 3 lignes consécutives de moins de 80 chars avec des chiffres)
+    const tableLines = [];
+    let j = i;
+    while (j < lines.length && j < i + 50) {
+      const l = lines[j].trim();
+      if (l.length === 0) { j++; continue; }
+      if (l.length < 80 || /^\d[\d\s,./%-]*$/.test(l) || /\d+\s*(place|logement|m²|%|T\d)/i.test(l)) {
+        tableLines.push(l);
+        j++;
+      } else {
+        break;
+      }
+    }
+    if (tableLines.length >= 4) {
+      // Regroupe les lignes en groupes de 2-3 pour former des "rangées"
+      // et les sépare par des pipes pour les rendre lisibles par l'IA
+      out.push(tableLines.join(' | '));
+      i = j;
+    } else {
+      out.push(line);
+      i++;
+    }
+  }
+  return out.join('\n');
 }
 
 // Extrait la section pertinente pour la zone depuis le texte complet
