@@ -2,101 +2,60 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse/lib/pdf-parse.js');
 
-const PROMPT = `Tu es un expert en droit de l'urbanisme français travaillant pour un asset manager immobilier.
+const PROMPT = `Tu es un expert en droit de l'urbanisme français. Réponds de façon factuelle et concise — pas de paraphrase, pas de développement inutile. Chaque réponse = une règle + sa source. Rien d'autre.
 
-Voici les extraits du règlement PLU/PLUi pour la zone {ZONE}{COMMUNE}.
-Opération étudiée : {OPERATION}{PROJET}
+Zone : {ZONE}{COMMUNE}
+Opération : {OPERATION}{PROJET}
 
-RÈGLES ABSOLUES :
-1. Cite UNIQUEMENT les dispositions qui s'appliquent DIRECTEMENT à la zone {ZONE}. Ignore tout ce qui concerne d'autres zones, d'autres communes, d'autres indices non applicables à cette zone.
-2. Si le règlement liste plusieurs cas (ex: indices A1/A2/A3, ou règles par commune), cite UNIQUEMENT le cas qui s'applique à {ZONE}. Si l'indice exact n'est pas déterminable sur les extraits, dis-le en une phrase et renvoie au plan graphique — ne liste pas tous les cas.
-3. Ne jamais inventer, reconstituer ou extrapoler. Si une information est absente : "Information non trouvée dans les documents analysés" — jamais "Non applicable".
-4. PLUi : les règles sont définies par zone. S'il existe des dispositions spécifiques à la zone {ZONE} ET des dispositions générales, combine-les. Ignore les dispositions des autres zones.
-5. TABLEAUX : certaines lignes contiennent des données tabulaires séparées par " | " — lis-les comme des colonnes de tableau. Ex: "Logement | 1 place/logement | 1,5 m²/logement" = une ligne de tableau avec 3 colonnes. Extrais les valeurs chiffrées de ces tableaux pour les volets stationnement, mixité et taille minimale.
-
-Si tu cites un plan graphique ou document cartographique, inclus TOUJOURS son lien sous la forme : [↗ Nom du plan](URL)
+RÈGLES :
+- Cite UNIQUEMENT ce qui est dans les extraits. Si absent : "Non trouvé dans les extraits."
+- Ne cite que les règles qui s'appliquent à {ZONE}. Ignore les autres zones et indices.
+- Pour chaque règle : texte exact entre guillemets + article + page.
+- TABLEAUX : les lignes séparées par " | " sont des colonnes de tableau — extrais les valeurs.
+- Zéro introduction, zéro conclusion, zéro reformulation. Va droit au fait.
 
 ---
 
-# ANALYSE RÉGLEMENTAIRE — 4 VOLETS OBLIGATOIRES
+## ① Habitation — Logement et Hébergement
+**Logement :** ✅ Autorisé / ⚠️ Sous conditions / ❌ Interdit
+**Hébergement :** ✅ Autorisé / ⚠️ Sous conditions / ❌ Interdit
+Si sous conditions : une phrase, les conditions exactes.
+> *Art. XX :* "texte exact"
 
-## ① Destinations — Habitation
-Statut de la destination **Habitation** dans la zone :
-- Sous-destination **Logement** : ✅ Autorisé / ⚠️ Sous conditions / ❌ Interdit
-- Sous-destination **Hébergement** : ✅ Autorisé / ⚠️ Sous conditions / ❌ Interdit
-
-Pour chaque verdict : cite l'article et le texte exact. Si sous conditions : précise les conditions exactes.
-> *Article XX :* "Texte exact."
-
----
-
-## ② Mixité sociale (SMS / logements sociaux)
-**Rechercher OBLIGATOIREMENT tous ces termes dans les extraits :**
-SMS, Secteur de Mixité Sociale, Servitude de Mixité Sociale, logements sociaux, logements locatifs sociaux, part minimale de logements sociaux, L151-15, L.151-15, diversité de l'habitat, objectif de mixité, programme de logements sociaux, obligation de logements aidés, logements abordables.
-
-**Résultat :** Trouvé ✅ / Information non trouvée dans les documents analysés
-
-**Si trouvé, détailler OBLIGATOIREMENT :**
-- % de logements sociaux imposé
-- Types exigés (PLAI / PLUS / PLS)
-- Seuil de déclenchement (m² SDP ou nombre de logements)
-- Champ d'application EXACT : reproduire mot pour mot les termes ("nouvelles constructions", "opérations de reconstruction", "surfaces nouvellement créées", etc.)
-- **Applicabilité à l'opération :** ✅ Applicable / ⚠️ Ambiguë / ❌ Non applicable
-- **Raisonnement obligatoire :** un changement de destination pur sans création de surface n'est pas forcément une "construction à édifier" ou une "reconstruction" — analyser les termes exacts et conclure
-
-**Statut cartographique :** la présence de la parcelle dans un périmètre SMS ne peut être confirmée que sur le plan de mixité sociale — indiquer le lien vers ce plan s'il est disponible.
-> *Article XX :* "Texte exact."
-
----
+## ② Mixité sociale
+**Statut parcelle :** (voir donnée cartographique ci-dessus)
+**Règle applicable :**
+- % LLS imposé : X%
+- Seuil déclenchement : X m² SDP / X logements
+- Champ d'application : "texte exact des termes" (nouvelles constructions / reconstruction / surfaces nouvellement créées...)
+- **Applicable à cette opération :** ✅ Oui / ⚠️ Ambigu / ❌ Non — une phrase de justification
+> *Art. XX :* "texte exact"
+Si non trouvé : "Non trouvé dans les extraits."
 
 ## ③ Taille minimale des logements
-**Rechercher OBLIGATOIREMENT tous ces termes dans les extraits :**
-STML, taille minimale, superficie minimale, surface minimale, surface de plancher minimale, taille et capacité d'accueil, répartition T1/T2/T3/T4/T5, % de grands logements, % de logements de type X, division foncière, lot minimal.
-
-**Résultat :** Trouvé ✅ / Information non trouvée dans les documents analysés
-
-**Si trouvé, détailler OBLIGATOIREMENT :**
-- Superficie minimale par logement (m² SDP ou SHAB)
-- Répartition obligatoire par type (ex: min 30% de T3+)
-- Seuil de déclenchement (nb logements ou m² SDP)
-- Champ d'application exact
-- **Applicabilité à l'opération :** ✅ / ⚠️ / ❌ avec raisonnement
-> *Article XX :* "Texte exact."
-
----
+- Superficie min par logement : X m²
+- Répartition imposée : X% de T3+, X% de T1-T2...
+- Seuil déclenchement : X logements / X m² SDP
+- **Applicable :** ✅ / ⚠️ / ❌ — une phrase
+> *Art. XX :* "texte exact"
+Si non trouvé : "Non trouvé dans les extraits."
 
 ## ④ Mixité fonctionnelle
-**Rechercher OBLIGATOIREMENT tous ces termes dans les extraits :**
-mixité fonctionnelle, linéaire commercial, linéaire de protection, rez-de-chaussée actif, RDC actif, animation commerciale, protection du commerce, protection de l'artisanat, obligation de commerce, % logement / % commerce imposé, quote-part, sous-destination obligatoire en RDC, destination imposée.
-
-**Résultat :** Trouvé ✅ / Information non trouvée dans les documents analysés
-
-**Si trouvé, détailler OBLIGATOIREMENT :**
-- % de logement imposé (minimum ou maximum)
-- % de commerce / activité imposé
-- Linéaires commerciaux concernés (avec lien vers le plan si disponible)
-- Seuil de déclenchement
-- **Applicabilité à l'opération :** ✅ / ⚠️ / ❌ avec raisonnement
-> *Article XX :* "Texte exact."
-
----
+- % logement imposé : X%
+- % commerce/activité imposé : X%
+- Linéaire commercial : oui/non — plan à consulter
+- Seuil : X m² / X logements
+- **Applicable :** ✅ / ⚠️ / ❌ — une phrase
+> *Art. XX :* "texte exact"
+Si non trouvé : "Non trouvé dans les extraits."
 
 ## ⑤ Stationnement
-**Rechercher dans les extraits :**
-Places de stationnement, parking, véhicules, vélos, stationnement logement, stationnement hébergement, norme de stationnement, dérogation stationnement.
-
-**Résultat :** Trouvé ✅ / Information non trouvée dans les documents analysés
-
-**Si trouvé, détailler :**
-- Norme voitures : X place(s) par logement (préciser par type T1/T2/T3+ si différencié)
-- Norme vélos : X m² ou X place(s) par logement
-- Dérogations possibles (proximité transports, mutualisation, caves/celliers)
-- **Applicabilité à l'opération :** ✅ / ⚠️ / ❌
-> *Article XX :* "Texte exact."
-
----
-
-RAPPEL FINAL : pour chaque volet, si l'information n'est pas dans les extraits fournis → "Information non trouvée dans les documents analysés". Ne jamais écrire "Non applicable". Commence directement par le volet ①.`;
+- Voitures logement : X place/logement (T1-T2), X place/logement (T3+)
+- Voitures hébergement : X place/chambre ou X place/m²
+- Vélos : X m²/logement ou X place/logement
+- Dérogation possible : oui/non
+> *Art. XX :* "texte exact"
+Si non trouvé : "Non trouvé dans les extraits."`;
 
 const OPERATIONS = {
   destination: "Changement de destination — bureaux → logements, bâtiment existant",
