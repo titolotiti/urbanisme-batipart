@@ -1,4 +1,4 @@
- import { createRequire } from 'module';
+import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse/lib/pdf-parse.js');
 
@@ -117,7 +117,9 @@ async function extractText(buffer) {
 // Extrait la section pertinente pour la zone depuis le texte complet
 function extractZoneText(fullText, zone) {
   const zoneUp = zone.toUpperCase();
-  const baseZone = zone.replace(/[a-z]+$/, '').replace(/-[A-Z0-9-]+$/, '') || zone;
+  // Base de zone : lettres initiales + chiffre immédiat uniquement
+  // Ex: U1-C-1→U1, UM1c3→UM1, UPGE06→UPGE06, UAb→UA, U4a→U4
+  const baseZone = (zone.match(/^([A-Z]+\d*)/)?.[1]) || zone;
   const baseUp = baseZone.toUpperCase();
   const familleUp = baseUp.replace(/[0-9]+.*$/, '');
 
@@ -203,9 +205,16 @@ export default async function handler(req, res) {
       ? '\n\n✅ DONNÉE CARTOGRAPHIQUE CONFIRMÉE — Cette parcelle n\'est dans AUCUN secteur de mixité sociale (SMS) selon le Géoportail de l\'Urbanisme. Pas d\'obligation de logements sociaux liée à la localisation de la parcelle.'
       : '';
 
+  // Note sur le code de zone : dans les règlements à indices (ex: U1-C-1),
+  // le texte du règlement utilise uniquement le code court (ex: U1).
+  // On l'indique à l'IA pour qu'elle cherche avec le bon identifiant.
+  const zoneNote = zone !== baseZone
+    ? `\n\nNOTE ZONE : La zone s'affiche "${zone}" mais dans le texte du règlement, cherche les dispositions sous le code court "${baseZone}" (les indices "-C-1" sont des sous-indices traités dans des articles séparés, pas dans le nom de zone).`
+    : '';
+
   const prompt = PROMPT
     .replace('{ZONE}', zone)
-    .replace('{COMMUNE}', communeInfo + plansInfo + smsInfo)
+    .replace('{COMMUNE}', communeInfo + plansInfo + smsInfo + zoneNote)
     .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType)
     .replace('{PROJET}', projet ? '\nDescription du projet envisagé par le client (raisonne sur CE projet précis, notamment pour l\'applicabilité des servitudes en ③) : ' + String(projet).slice(0, 1500) : '');
 
@@ -394,7 +403,16 @@ export default async function handler(req, res) {
     }
 
     // Extraction intelligente de la section de zone
-    const baseZone = zone.replace(/[a-z]+$/, '').replace(/-[A-Z0-9-]+$/, '') || zone;
+    // Base de zone : lettres initiales + chiffre immédiat uniquement
+  // Ex: U1-C-1→U1, UM1c3→UM1, UPGE06→UPGE06, UAb→UA, U4a→U4
+  const baseZone = (zone.match(/^([A-Z]+\d*)/)?.[1]) || zone;
+  // Zone courte pour les recherches thématiques (SMS, taille, mixité fonctionnelle) :
+  // uniquement les 2 premières lettres + chiffre optionnel — ignore les indices
+  // Ex: U1-C-1→U1, UPGE06→UP... non, garder baseZone qui est déjà correct
+  // En réalité : baseZone suffit (U1, UMH, UPGE06 sont déjà les bons codes)
+  // shortZone = 2 premières lettres SEULEMENT pour les recherches dans fullText
+  const shortZone = zone.replace(/^([A-Z]{1,4}\d?).*$/, '$1').toUpperCase();
+  console.log('Zone:', zone, '| base:', baseZone, '| short:', shortZone);
 
     function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
