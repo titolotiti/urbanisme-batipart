@@ -46,7 +46,7 @@ CHAMPS OBLIGATOIRES PAR SECTION :
 - regle_principale : valeurs exactes (chiffres, %, seuils) ou "Non trouvé dans les extraits."
 - article : ex "Art. UH 1.2" — ou "" si absent
 - page : numéro de page (--- PAGE N ---) — ou "" si absent
-- analyse_detaillee : MINIMUM 200 mots, structuré ainsi :
+- analyse_detaillee : analyse concise et complète (900 à 1 500 caractères max), structurée ainsi si les informations sont disponibles :
   (a) Règle applicable et son fondement réglementaire
   (b) Champ d'application exact (verbatim) — qui est visé, qui ne l'est pas
   (c) Seuils de déclenchement
@@ -66,11 +66,13 @@ CHAMPS OBLIGATOIRES PAR SECTION :
 - action_recommandee : phrase d'action concrète pour l'utilisateur (ex: "Télécharger le plan graphique n°4.3 et localiser la parcelle dans le secteur colorisé."), sinon ""
 
 CONTRAINTES DE LONGUEUR (impératives — un JSON tronqué est inutilisable) :
-- analyse_detaillee : MINIMUM 200 mots, MAXIMUM 1 200 caractères
+- analyse_detaillee : viser 900 à 1 500 caractères, ne jamais dépasser 1 800 caractères
 - citation : MAXIMUM 800 caractères
 - points_vigilance : 2 à 4 éléments, JAMAIS plus de 4
 - documents_a_consulter : 0 à 3 éléments maximum
 - synthese dans conclusion_operationnelle : MAXIMUM 200 mots
+
+⚠️ ATTENTION — RÈGLES TRANSVERSALES : Les règles SMS, STML, stationnement, pleine-terre, CBS, hauteur, implantation et risques/servitudes se trouvent SOUVENT dans des chapitres TRANSVERSAUX du règlement, PAS uniquement dans la section de la zone. Des extraits thématiques dédiés sont fournis sous les marqueurs "--- MIXITÉ SOCIALE ---", "--- TAILLE MINIMALE ---", "--- STATIONNEMENT ---", "--- EMPRISE AU SOL ---", "--- IMPLANTATION ---", etc. Analyse ces extraits thématiques même s'ils ne portent pas le nom de la zone. Si une règle transversale existe dans ces extraits, cite-la — ne pas écrire "Non trouvé" si la règle est présente dans un extrait thématique fourni.
 
 LOGIQUE AVANT D'ÉCRIRE "Non trouvé dans le règlement écrit" :
 Avant d'utiliser "❓", recherche ces mots-clés dans les extraits :
@@ -85,8 +87,8 @@ Si la règle existe dans le règlement mais que son application à la parcelle d
 Ne jamais écrire "Information non fournie dans les extraits" si on sait quel document permet de conclure.
 
 STANDARD DE QUALITÉ pour analyse_detaillee :
-❌ Insuffisant : "65 % de T3+ à partir de 6 logements."
-✅ Attendu : "Le règlement impose, dans les secteurs STML, un minimum de 65 % de logements T3 ou plus dès lors que l'opération comporte 6 logements ou davantage. Cette obligation vise les 'constructions à édifier' et les 'opérations de reconstruction' selon les termes exacts du règlement. Or le projet consiste en un changement de destination d'un immeuble de bureaux existant, sans démolition ni reconstruction. Cette opération ne constitue pas une 'construction à édifier' au sens strict du PLU. La règle STML ne s'applique donc pas au projet tel que présenté. Conséquence opérationnelle : aucun quota de typologies n'est exigible — liberté totale sur la répartition T1/T2/T3+. Marge de manœuvre : cet avantage peut être utilisé pour optimiser la mixité commerciale selon le marché. Risque principal : si une démolition-reconstruction partielle intervient, même non intentionnelle, la qualification change et la règle STML s'applique intégralement."
+❌ Insuffisant : reprendre une valeur isolée sans préciser le champ d'application, les seuils, les exclusions et l'effet concret sur le projet.
+✅ Attendu : expliquer la règle trouvée dans les extraits, citer son article/page, préciser exactement qui est visé, les seuils, les exclusions, puis conclure pour le projet étudié. Ne jamais reprendre un chiffre ou une obligation d'un ancien test : tout chiffre doit venir des extraits fournis pour ce PLU/PLUi.
 
 FORMAT JSON OBLIGATOIRE :
 <json>
@@ -165,17 +167,28 @@ const PLAN_FALLBACK_NAMES = {
 };
 
 // Enrichit les planUrls bruts en ajoutant un num et un nom propre.
+// Priorité : nom réel fourni par zone.js (GPU ou IA). Fallback PLAN_FALLBACK_NAMES
+// seulement si le nom est générique (ex: "Plan graphique 3" sans titre réel).
 function normalizeGpuDocuments(rawPlans) {
   if (!Array.isArray(rawPlans) || !rawPlans.length) return [];
   return rawPlans.map(p => {
-    const num = String(p.nom || '').match(/(?:plan\s+graphique\s+|plan\s+)(\d+)/i)?.[1]
+    const rawNom = p.nom || '';
+    // Extrait le numéro depuis le nom ("Plan 3 — Zonage" → "3") ou l'URL
+    const num = rawNom.match(/(?:^plan\s+graphique\s+|^plan\s+)(\d+)/i)?.[1]
              || String(p.url || '').match(/graphique_(\d+)/i)?.[1];
-    const isGeneric = /^plan\s+graphique\s*\d*\s*$|^plan\s+\d+\s*$|^règlement\s+graphique/i.test(p.nom || '');
-    const nom = (!isGeneric && p.nom)
-      ? p.nom
-      : (num && PLAN_FALLBACK_NAMES[num])
-        ? `Plan graphique n°${num} — ${PLAN_FALLBACK_NAMES[num]}`
-        : (p.nom || `Plan graphique ${num || ''}`.trim());
+    // Générique = nom sans titre réel : "Plan graphique 3", "Plan graphique", "Plan 3"
+    // Ne PAS traiter comme générique : "Règlement graphique — Prescriptions",
+    // "Plan 3 — Zonage Saint-Denis", "Zonage Synthèse", etc.
+    const isGeneric = /^plan\s+graphique\s*\d*\s*$|^plan\s+\d+\s*$/i.test(rawNom);
+    let nom;
+    if (!isGeneric && rawNom) {
+      nom = rawNom; // vrai nom GPU / IA — on le garde tel quel
+    } else if (num && PLAN_FALLBACK_NAMES[num]) {
+      nom = `Plan graphique n°${num} — ${PLAN_FALLBACK_NAMES[num]}`;
+    } else {
+      // Si on détecte seulement un numéro sans libellé fiable, on n'invente pas un titre.
+      nom = 'Document graphique — titre non disponible';
+    }
     return { nom, url: p.url, num: num || null };
   });
 }
@@ -219,21 +232,21 @@ function resolveDocUrls(sections, availablePlans) {
 }
 
 const STATUT_FROM_LABEL = { 'applicable': '✅', 'sous conditions': '⚠️', 'non applicable': '❌', 'à vérifier sur plan graphique': '🗺️', 'non trouvé': '❓', 'non trouvé dans le règlement écrit': '❓' };
-const LABEL_FROM_STATUT = { '✅': 'Applicable', '⚠️': 'Sous conditions', '❌': 'Non applicable', '🗺️': 'À vérifier sur plan graphique', '❓': 'Non trouvé' };
+const LABEL_FROM_STATUT = { '✅': 'Applicable', '⚠️': 'Sous conditions', '❌': 'Non applicable', '🗺️': 'À vérifier sur plan graphique', '❓': 'Non trouvé dans le règlement écrit' };
 
 function coerceStatut(rawStatut, rawLabel) {
   const s = (rawStatut || '').trim();
   if (LABEL_FROM_STATUT[s]) return { statut: s, statut_label: LABEL_FROM_STATUT[s] };
   const lNorm = (rawLabel || '').toLowerCase().trim();
   if (STATUT_FROM_LABEL[lNorm]) return { statut: STATUT_FROM_LABEL[lNorm], statut_label: rawLabel };
-  return { statut: '❓', statut_label: 'Non trouvé' };
+  return { statut: '❓', statut_label: 'Non trouvé dans le règlement écrit' };
 }
 
 function normalizeAnalysis(parsed) {
   const defaultSection = titre => ({
     titre,
     statut: '❓',
-    statut_label: 'Non trouvé',
+    statut_label: 'Non trouvé dans le règlement écrit',
     resume: 'Non trouvé dans les extraits.',
     regle_principale: 'Non trouvé dans les extraits.',
     article: '',
@@ -868,8 +881,9 @@ export default async function handler(req, res) {
     // 1. MIXITÉ SOCIALE — tous les termes possibles (SMS, L151-15, diversité habitat...)
     const mixiteSection = extractTopicSections(fullText,
       'SMS|secteurs?\\s+de\\s+mixit[ée]\\s+sociale|servitude\\s+de\\s+mixit[ée]|' +
-      'mixit[ée]\\s+sociale|logements?\\s+(?:locatifs?\\s+)?sociaux|' +
+      'mixit[ée]\\s+sociale|logements?\\s+(?:locatifs?\\s+)?sociaux|logement\\s+social\\b|' +
       'part\\s+minimale\\s+de\\s+logements?\\s+sociaux|pourcentage\\s+de\\s+logements?\\s+sociaux|' +
+      'emplacement\\s+r[ée]serv[ée]\\s+(?:au\\s+titre\\s+de\\s+la\\s+)?mixit[ée]|' +
       'diversit[ée]\\s+de\\s+l.habitat|objectif\\s+de\\s+mixit[ée]|' +
       'L\\.?\\s*151-15|article\\s+L\\.?\\s*302|programme\\s+de\\s+logements?\\s+sociaux|' +
       'servitude\\s+logement|obligation\\s+de\\s+logements?\\s+sociaux|' +
@@ -887,6 +901,8 @@ export default async function handler(req, res) {
       'r[ée]partition\\s+(?:des?\\s+)?(?:logements?|typologies?)|' +
       '\\d+\\s*%\\s*(?:de\\s+)?(?:grands?\\s+)?logements?\\s+(?:de\\s+)?type\\s+T|' +
       'logements?\\s+de\\s+(?:grande|petite)\\s+taille|' +
+      '\\bT3\\b|\\bT3\\+\\b|type\\s+3|logements?\\s+T[2-5]|' +
+      '65\\s*%|quota\\s+(?:de\\s+)?logements?|programmes?\\s+de\\s+logements?|' +
       'unité\\s+foncière\\s+minimale|lot\\s+minimal|division\\s+fonci[èe]re',
       16000);
 
@@ -916,17 +932,37 @@ export default async function handler(req, res) {
     const empriseSection = extractTopicSections(fullText,
       'emprise\\s+au\\s+sol|coefficient\\s+d[e\']?(?:emprise|occupation|utilisation)|' +
       '\\bCES\\b|\\bCOS\\b|\\bCUF\\b|\\bSEP\\b|' +
-      'pleine\\s+terre|espace(?:s)?\\s+(?:verts?|lib[rs]es?|perméables?|non[\\s-]imperméabilis[ée]s?)|' +
-      'coefficient\\s+(?:bio|vert|nature|perméabilité)|surface\\s+(?:perméable|végétalis[ée]|non[\\s-]imperméabilis[ée])|' +
+      'pleine\\s+terre|pleine-terre|espace(?:s)?\\s+(?:verts?|lib[rs]es?|perméables?|non[\\s-]imperméabilis[ée]s?)|' +
+      'coefficient\\s+(?:bio|vert|nature|perméabilité|biotope)|\\bCBS\\b|' +
+      'surface\\s+(?:perméable|végétalis[ée]|non[\\s-]imperméabilis[ée])|' +
       'imperméabilis(?:ation|[ée])|végétalisa(?:tion|[ée])',
       12000);
 
-    // Fonction de déduplication : n'ajoute une section que si elle n'est pas
-    // déjà couverte par le texte déjà envoyé
+    // 6. STATIONNEMENT — normes, places, vélos, S1/S2/S3/S4
+    const statSection = extractTopicSections(fullText,
+      'stationnement|aires?\\s+de\\s+stationnement|places?\\s+de\\s+(?:parking|stationnement)|' +
+      'normes?\\s+de\\s+stationnement|besoins?\\s+en\\s+stationnement|' +
+      'nombre\\s+de\\s+places?|ratio\\s+de\\s+stationnement|' +
+      '\\bS1\\b|\\bS2\\b|\\bS3\\b|\\bS4\\b|' +
+      'stationnement\\s+(?:des?\\s+)?v[eé]los?|parc(?:s)?\\s+v[eé]los?|local\\s+v[eé]los?',
+      16000);
+
+    // 7. IMPLANTATION / PROSPECTS — reculs, limites séparatives, bande constructible
+    const implantSection = extractTopicSections(fullText,
+      'implantation|prospect|recul|retrait|limite\\s+séparat|' +
+      'bande\\s+constructible|alignement\\s+(?:sur|à|de\\s+la\\s+voie)|' +
+      'front\\s+(?:de\\s+)?b[aâ]ti|distance\\s+(?:minimale?|aux?|par\\s+rapport)|' +
+      'marge\\s+de\\s+recul|retrait\\s+(?:par\\s+rapport|de\\s+la)',
+      12000);
+
+    // Déduplication : n'ajoute une section que si son contenu n'est pas déjà dans sendText.
+    // BUG CORRIGÉ : section.slice(2000,2400)="" pour sections < 2000 chars → "".includes("")=true
+    // → section silencieusement ignorée. Fix : toujours ajouter les sections courtes.
     function addIfNew(existing, section) {
       if (!section) return false;
+      if (section.length < 2000) return true; // section courte → toujours inclure
       const probe = section.slice(2000, 2400);
-      return probe && !existing.includes(probe);
+      return !probe || !existing.includes(probe);
     }
 
     async function callClaude(promptText) {
@@ -959,18 +995,29 @@ export default async function handler(req, res) {
     }
 
     // Ajoute les sections thématiques si non déjà couvertes
-    for (const { label, section } of [
-      { label: 'MIXITÉ SOCIALE / LOGEMENTS SOCIAUX', section: mixiteSection },
-      { label: 'TAILLE MINIMALE / TYPOLOGIE DES LOGEMENTS', section: tailleSection },
-      { label: 'MIXITÉ FONCTIONNELLE / LINÉAIRES COMMERCIAUX', section: mixiteFoncSection },
-      { label: 'HAUTEUR / GABARIT', section: hauteurSection },
-      { label: 'EMPRISE AU SOL / PLEINE TERRE / ESPACES VERTS', section: empriseSection },
+    const topicsDebug = { sections_found: [], sections_missing: [], sections_included: [] };
+    for (const { label, key, section } of [
+      { label: 'MIXITÉ SOCIALE / LOGEMENTS SOCIAUX',           key: 'SMS',           section: mixiteSection },
+      { label: 'TAILLE MINIMALE / TYPOLOGIE DES LOGEMENTS',    key: 'STML',          section: tailleSection },
+      { label: 'MIXITÉ FONCTIONNELLE / LINÉAIRES COMMERCIAUX', key: 'MIXFONC',       section: mixiteFoncSection },
+      { label: 'HAUTEUR / GABARIT',                            key: 'HAUTEUR',       section: hauteurSection },
+      { label: 'EMPRISE AU SOL / PLEINE TERRE / ESPACES VERTS',key: 'EMPRISE_CBS',   section: empriseSection },
+      { label: 'STATIONNEMENT',                                key: 'STATIONNEMENT', section: statSection },
+      { label: 'IMPLANTATION / PROSPECTS',                     key: 'IMPLANTATION',  section: implantSection },
     ]) {
-      if (!section || !addIfNew(sendText, section)) continue;
+      if (!section) { topicsDebug.sections_missing.push(key); continue; }
+      topicsDebug.sections_found.push(key);
+      if (!addIfNew(sendText, section)) {
+        topicsDebug.sections_included.push(key + ':déjà_dans_zone');
+        console.log('Section', label, ': déjà couverte par la section de zone');
+        continue;
+      }
       sendText += '\n\n--- ' + label + ' ---\n\n' + section;
+      topicsDebug.sections_included.push(key + ':ajouté');
       console.log('Section', label, 'ajoutée:', section.length, 'chars');
     }
 
+    console.log('topics_debug:', JSON.stringify(topicsDebug));
     console.log('Texte envoyé:', sendText.length, 'chars');
 
     const fullPrompt = 'Voici les extraits du règlement PLU pour la zone "' + zone + '".\n\nRÈGLE ABSOLUE : ne cite et n\'utilise QUE les dispositions présentes dans les extraits ci-dessous.\n\n' + sendText + '\n\n---\n\n' + prompt;
@@ -996,9 +1043,9 @@ export default async function handler(req, res) {
     }
 
     if (!analysisData) {
-      return res.status(200).json({ success: true, zone, analysisType, raw: analysisText });
+      return res.status(200).json({ success: true, zone, analysisType, raw: analysisText, topics_debug: topicsDebug });
     }
-    return res.status(200).json({ success: true, zone, analysisType, ...analysisData });
+    return res.status(200).json({ success: true, zone, analysisType, ...analysisData, topics_debug: topicsDebug });
 
   } catch(err) {
     console.error('Erreur:', err.message);
