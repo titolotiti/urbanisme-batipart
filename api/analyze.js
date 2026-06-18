@@ -148,6 +148,71 @@ const SECTION_TITLES = [
   'Risques, servitudes et prescriptions particulières',
 ];
 
+// Noms canoniques de repli pour les plans graphiques numérotés.
+// Ces libellés sont communs à de nombreux PLU/PLUi mais non universels :
+// ils ne s'appliquent que si le nom récupéré depuis l'API GPU est générique.
+const PLAN_FALLBACK_NAMES = {
+  '1': 'Plan général',
+  '2': 'Plan des prescriptions et périmètres particuliers',
+  '3': 'Plan des protections patrimoniales, écologiques et paysagères',
+  '4': 'Plan de pleine-terre et coefficient de biotope surfacique',
+  '5': 'Plan des secteurs de stationnement',
+};
+
+// Enrichit les planUrls bruts en ajoutant un num et un nom propre.
+function normalizeGpuDocuments(rawPlans) {
+  if (!Array.isArray(rawPlans) || !rawPlans.length) return [];
+  return rawPlans.map(p => {
+    const num = String(p.nom || '').match(/(?:plan\s+graphique\s+|plan\s+)(\d+)/i)?.[1]
+             || String(p.url || '').match(/graphique_(\d+)/i)?.[1];
+    const isGeneric = /^plan\s+graphique\s*\d*\s*$|^plan\s+\d+\s*$|^règlement\s+graphique/i.test(p.nom || '');
+    const nom = (!isGeneric && p.nom)
+      ? p.nom
+      : (num && PLAN_FALLBACK_NAMES[num])
+        ? `Plan graphique n°${num} — ${PLAN_FALLBACK_NAMES[num]}`
+        : (p.nom || `Plan graphique ${num || ''}`.trim());
+    return { nom, url: p.url, num: num || null };
+  });
+}
+
+// Résout les URLs dans documents_a_consulter en les matchant contre les plans disponibles.
+// Double stratégie : par numéro de plan, puis par mots-clés thématiques.
+function resolveDocUrls(sections, availablePlans) {
+  if (!availablePlans.length) return sections;
+  const THEMATIC = [
+    { keys: ['prescription', 'périmètre', 'sms', 'stml', 'emplacement', 'hauteur', 'réservé'], planKeys: ['prescription', 'périmètre'] },
+    { keys: ['mixité', 'social', 'diversité'], planKeys: ['mixité', 'social', 'diversité'] },
+    { keys: ['pleine terre', 'biotope', 'cbs'], planKeys: ['pleine', 'biotope', 'cbs'] },
+    { keys: ['stationnement', 'parking'], planKeys: ['stationnement'] },
+    { keys: ['patrimoine', 'paysag', 'écolog'], planKeys: ['patrimoine', 'paysag', 'écolog', 'protection'] },
+    { keys: ['zonage', 'général', 'general'], planKeys: ['général', 'general', 'zonage', 'synthèse'] },
+  ];
+  return sections.map(sec => ({
+    ...sec,
+    documents_a_consulter: (sec.documents_a_consulter || []).map(doc => {
+      if (doc.url) return doc;
+      const refLower = (String(doc.reference || '') + ' ' + String(doc.nom_document || '')).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      // 1. Match par numéro explicite dans la référence
+      const numRef = refLower.match(/n[°o]?\s*(\d+)|graphique\s+(\d+)|plan\s+(\d+)/);
+      if (numRef) {
+        const n = numRef[1] || numRef[2] || numRef[3];
+        const byNum = availablePlans.find(p => p.num === n);
+        if (byNum) return { ...doc, url: byNum.url, nom_document: byNum.nom || doc.nom_document };
+      }
+      // 2. Match thématique
+      for (const th of THEMATIC) {
+        if (!th.keys.some(k => refLower.includes(k))) continue;
+        const matched = availablePlans.find(p => {
+          const pn = p.nom.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+          return th.planKeys.some(k => pn.includes(k));
+        });
+        if (matched) return { ...doc, url: matched.url, nom_document: matched.nom || doc.nom_document };
+      }
+      return doc;
+    }),
+  }));
+}
+
 const STATUT_FROM_LABEL = { 'applicable': '✅', 'sous conditions': '⚠️', 'non applicable': '❌', 'à vérifier sur plan graphique': '🗺️', 'non trouvé': '❓', 'non trouvé dans le règlement écrit': '❓' };
 const LABEL_FROM_STATUT = { '✅': 'Applicable', '⚠️': 'Sous conditions', '❌': 'Non applicable', '🗺️': 'À vérifier sur plan graphique', '❓': 'Non trouvé' };
 
@@ -365,10 +430,15 @@ export default async function handler(req, res) {
   // Ex: U1-C-1→U1, UAb6e9→UA, UM1c3→UM1, UPGE06→UPGE06
   const baseZone = (zone.match(/^([A-Z]+\d*)/)?.[1]) || zone;
 
-  const plansInfo = (planUrls && planUrls.length)
-    ? '\nPlans graphiques disponibles (liens de téléchargement) — le nom indiqué est le titre RÉEL du plan :\n' + 
-      planUrls.map(p => `- ${p.nom} : ${p.url}`).join('\n') +
-      '\nQuand tu mentionnes un plan (mixité sociale, zonage, emplacements réservés, hauteurs...), utilise UNIQUEMENT le lien dont le nom correspond au sujet. Si aucun plan listé ne correspond au sujet (nom générique "Plan graphique N" ou sujet absent de la liste), ne mets PAS de lien de téléchargement et ne devine JAMAIS quel numéro de plan correspond à quel contenu : indique à la place de consulter le plan recherché en le nommant précisément (ex: "le plan de mixité sociale", "le plan des hauteurs") sur la visionneuse GPU ou sur le site de la commune' + (commune ? ` de ${commune}` : '') + ' / de l\'intercommunalité (rubrique urbanisme ou PLU).'
+  const normalizedPlans = normalizeGpuDocuments(planUrls || []);
+  const plansInfo = normalizedPlans.length
+    ? '\n\nDOCUMENTS GRAPHIQUES DÉJÀ DISPONIBLES — liens directs opérationnels :\n' +
+      normalizedPlans.map(p => `- ${p.nom} : ${p.url}`).join('\n') +
+      '\n\nRÈGLES DOCUMENTS (impératives) :' +
+      '\n1. Si une section nécessite de consulter un plan listé ci-dessus : mets l\'URL EXACTE dans documents_a_consulter[].url — JAMAIS null si le document est dans la liste.' +
+      '\n2. Nomme le document avec son titre exact tel qu\'il apparaît dans la liste ci-dessus.' +
+      '\n3. Dans analyse_detaillee et points_vigilance, écris "à vérifier dans le plan déjà disponible : [titre exact]" plutôt que "à télécharger sur le Géoportail".' +
+      '\n4. Si le document nécessaire n\'est PAS dans la liste ci-dessus : laisse url null et indique "Lien direct non disponible".'
     : (zonageUrl ? `\nPlan graphique : ${zonageUrl}` : '');
   // Info SMS cartographique (récupérée depuis APICarto GPU info-surf)
   const smsInfo = smsData && smsData.length > 0
@@ -831,7 +901,11 @@ export default async function handler(req, res) {
         || analysisText.match(/```json\s*([\s\S]*?)```/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[1].trim());
-        analysisData = normalizeAnalysis(parsed);
+        const normalized = normalizeAnalysis(parsed);
+        // Résolution des URLs dans documents_a_consulter : si Claude a mis url: null
+        // mais que le plan est dans la liste des plans disponibles, on injecte l'URL réelle.
+        normalized.sections = resolveDocUrls(normalized.sections, normalizedPlans);
+        analysisData = normalized;
       }
     } catch (e) {
       console.log('JSON parsing failed:', e.message);
