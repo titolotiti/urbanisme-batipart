@@ -763,11 +763,13 @@ async function runAnalysis(type) {
   abortControllers[type] = controller;
 
   const steps = [
-    [10, 'Téléchargement du règlement…'],
-    [25, 'Extraction du texte…'],
-    [45, 'Lecture des articles de zone…'],
-    [65, 'Analyse juridique en cours…'],
-    [82, 'Rédaction de la synthèse…'],
+    [8,  'Téléchargement du règlement…'],
+    [20, 'Traitement d\'un règlement volumineux — extraction complète en cours…'],
+    [35, 'Extraction du texte réglementaire…'],
+    [50, 'Lecture des articles de la zone…'],
+    [65, 'Recherche des règles transversales…'],
+    [78, 'Analyse juridique en cours…'],
+    [90, 'Rédaction de la synthèse…'],
   ];
   let stepIdx = 0;
   const progressInterval = setInterval(() => {
