@@ -787,8 +787,8 @@ async function runAnalysis(type) {
     spEl.className = 'spin';
     restoreBtn(type);
     document.getElementById('zt-' + type).textContent = 'Zone ' + zone;
-    const r = results[type];
-    document.getElementById('rb-' + type).innerHTML = (r && typeof r === 'object' && r.sections) ? renderAnalysis(r) : mdParse(r || '');
+    const analysisResult = results[type];
+    document.getElementById('rb-' + type).innerHTML = (analysisResult && typeof analysisResult === 'object' && analysisResult.sections) ? renderAnalysis(analysisResult) : mdParse(analysisResult || '');
     resEl.className = 'res on';
     delete abortControllers[type];
   } catch(e) {
