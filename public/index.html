@@ -223,13 +223,19 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
 .sa-section{background:var(--s);border:1.5px solid var(--bdr);border-radius:var(--r);overflow:hidden;margin-bottom:10px;transition:border-color .2s}
 .sa-section-hd{display:flex;align-items:flex-start;gap:12px;padding:14px 18px 10px}
 .sa-badge{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;font-size:15px;flex-shrink:0;margin-top:1px}
-.sa-badge.ok{background:var(--green-bg)}.sa-badge.warn{background:var(--amber-bg)}.sa-badge.nok{background:var(--red-l)}.sa-badge.unk{background:var(--s2)}
+.sa-badge.ok{background:var(--green-bg)}.sa-badge.warn{background:var(--amber-bg)}.sa-badge.nok{background:var(--red-l)}.sa-badge.map{background:#dbeafe}.sa-badge.unk{background:var(--s2)}
 .sa-info{flex:1;min-width:0}
 .sa-title{font-size:13.5px;font-weight:600;color:var(--ink);margin-bottom:3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sa-title-label{font-size:11px;font-weight:500;border-radius:5px;padding:1px 7px}
-.sa-title-label.ok{background:var(--green-bg);color:var(--green-t)}.sa-title-label.warn{background:var(--amber-bg);color:var(--amber-t)}.sa-title-label.nok{background:var(--red-l);color:var(--red-t)}.sa-title-label.unk{background:var(--s2);color:var(--ink3)}
+.sa-title-label.ok{background:var(--green-bg);color:var(--green-t)}.sa-title-label.warn{background:var(--amber-bg);color:var(--amber-t)}.sa-title-label.nok{background:var(--red-l);color:var(--red-t)}.sa-title-label.map{background:#dbeafe;color:#1e40af}.sa-title-label.unk{background:var(--s2);color:var(--ink3)}
 .sa-resume{font-size:13px;color:var(--ink2);line-height:1.65}
 .sa-rule-visible{font-size:12.5px;color:var(--ink2);line-height:1.6;margin-top:5px;padding:5px 10px;background:var(--s2);border-radius:6px;border-left:3px solid var(--bdr)}
+.sa-doc-block{margin-top:8px;padding:8px 12px;background:#eff6ff;border-radius:8px;border-left:3px solid #3b82f6;font-size:12px}
+.sa-doc-block .sa-doc-title{font-weight:600;color:#1e40af;margin-bottom:2px}
+.sa-doc-block .sa-doc-raison{color:#374151;margin-bottom:4px}
+.sa-doc-block a{color:#2563eb;text-decoration:underline}
+.sa-doc-fallback{color:#6b7280;font-style:italic}
+.sa-action{margin-top:6px;font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:5px 10px;border-left:3px solid #f59e0b}
 .sa-source{font-size:11px;color:var(--ink3);margin-top:5px}
 .sa-source strong{color:var(--blue)}
 .sa-toggles{display:flex;gap:6px;flex-wrap:wrap;padding:0 18px 12px}
@@ -963,6 +969,7 @@ function badgeClass(statut) {
   if (statut === '✅') return 'ok';
   if (statut === '⚠️') return 'warn';
   if (statut === '❌') return 'nok';
+  if (statut === '🗺️') return 'map';
   return 'unk';
 }
 function riskClass(niveau) {
@@ -981,6 +988,15 @@ function renderAnalysis(data) {
     const hasCitation = sec.citation && sec.citation.length > 5;
     const hasRule = sec.regle_principale && sec.regle_principale !== 'Non trouvé dans les extraits.' && sec.regle_principale.length > 5;
     const hasVigilance = sec.points_vigilance && sec.points_vigilance.length > 0;
+    const hasDocs = Array.isArray(sec.documents_a_consulter) && sec.documents_a_consulter.length > 0;
+    const hasAction = sec.action_recommandee && sec.action_recommandee.length > 5;
+    const showVigilPanel = hasVigilance || hasDocs || hasAction;
+    const docsHtml = hasDocs ? sec.documents_a_consulter.map(d => {
+      const linkHtml = d.url
+        ? `<a href="${escHtml(d.url)}" target="_blank" rel="noopener">Télécharger / consulter</a>`
+        : `<span class="sa-doc-fallback">Lien direct non disponible — consulter le Géoportail de l'Urbanisme.</span>`;
+      return `<div class="sa-doc-block"><div class="sa-doc-title">📄 ${escHtml(d.reference)}${d.nom_document ? ' — ' + escHtml(d.nom_document) : ''}</div><div class="sa-doc-raison">${escHtml(d.raison)}</div>${linkHtml}</div>`;
+    }).join('') : '';
     html += `<div class="sa-section">
 <div class="sa-section-hd">
   <div class="sa-badge ${bc}">${escHtml(sec.statut)}</div>
@@ -994,11 +1010,11 @@ function renderAnalysis(data) {
 <div class="sa-toggles">
   ${hasDetail ? `<button class="sa-toggle-btn" onclick="togglePanel('${pidDetail}',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>Plus de détail</button>` : ''}
   ${(hasRule || hasCitation) ? `<button class="sa-toggle-btn" onclick="togglePanel('${pidRegle}',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>Texte réglementaire</button>` : ''}
-  ${hasVigilance ? `<button class="sa-toggle-btn" onclick="togglePanel('${pidVigil}',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>Points de vigilance</button>` : ''}
+  ${showVigilPanel ? `<button class="sa-toggle-btn" onclick="togglePanel('${pidVigil}',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>Points de vigilance</button>` : ''}
 </div>
 ${hasDetail ? `<div class="sa-panel" id="${pidDetail}" style="display:none">${paragraphs(sec.analyse_detaillee)}</div>` : ''}
 ${(hasRule || hasCitation) ? `<div class="sa-panel" id="${pidRegle}" style="display:none">${hasRule ? '<h4>Règle principale</h4><div class="sa-rule-tag">' + escHtml(sec.regle_principale) + '</div>' : ''}${hasCitation ? '<h4>Extrait du règlement</h4><blockquote>' + escHtml(sec.citation) + '</blockquote>' : ''}</div>` : ''}
-${hasVigilance ? `<div class="sa-panel" id="${pidVigil}" style="display:none"><h4>Points de vigilance</h4><ul>${sec.points_vigilance.map(p => '<li>' + escHtml(p) + '</li>').join('')}</ul></div>` : ''}
+${showVigilPanel ? `<div class="sa-panel" id="${pidVigil}" style="display:none">${hasVigilance ? '<h4>Points de vigilance</h4><ul>' + sec.points_vigilance.map(p => '<li>' + escHtml(p) + '</li>').join('') + '</ul>' : ''}${docsHtml}${hasAction ? '<div class="sa-action">📋 ' + escHtml(sec.action_recommandee) + '</div>' : ''}</div>` : ''}
 </div>`;
   });
   if (conc) {
@@ -1032,6 +1048,7 @@ function badgeStyleExport(statut) {
   if (statut === '✅') return 'background:#d1fae5;color:#065f46';
   if (statut === '⚠️') return 'background:#fef3c7;color:#92400e';
   if (statut === '❌') return 'background:#fee2e2;color:#991b1b';
+  if (statut === '🗺️') return 'background:#dbeafe;color:#1e40af';
   return 'background:#f1f5f9;color:#64748b';
 }
 function generateExportHtml(data, zone, address, opLabel, date) {
@@ -1043,6 +1060,16 @@ function generateExportHtml(data, zone, address, opLabel, date) {
     const hasCitation = sec.citation && sec.citation.length > 5;
     const hasRule = sec.regle_principale && sec.regle_principale !== 'Non trouvé dans les extraits.' && sec.regle_principale.length > 5;
     const hasVigilance = sec.points_vigilance && sec.points_vigilance.length > 0;
+    const hasDocs = Array.isArray(sec.documents_a_consulter) && sec.documents_a_consulter.length > 0;
+    const hasAction = sec.action_recommandee && sec.action_recommandee.length > 5;
+    const showVigilExp = hasVigilance || hasDocs || hasAction;
+    const docsExpHtml = hasDocs ? sec.documents_a_consulter.map(d => {
+      const linkHtml = d.url
+        ? `<a href="${d.url}" style="color:#2563eb">Télécharger / consulter</a>`
+        : `<span style="color:#6b7280;font-style:italic">Lien direct non disponible — consulter le Géoportail de l'Urbanisme.</span>`;
+      return `<div style="margin-top:8px;padding:8px 12px;background:#eff6ff;border-radius:7px;border-left:3px solid #3b82f6;font-size:12px"><strong style="color:#1e40af">📄 ${d.reference}${d.nom_document?' — '+d.nom_document:''}</strong><br><span style="color:#374151">${d.raison}</span><br>${linkHtml}</div>`;
+    }).join('') : '';
+    const actionExpHtml = hasAction ? `<div style="margin-top:6px;font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:5px 10px;border-left:3px solid #f59e0b">📋 ${sec.action_recommandee}</div>` : '';
     sHtml += `<div class="section">
 <div class="shd"><span class="badge" style="${bs}">${sec.statut}</span><div class="sinfo">
 <div class="stitle">${sec.titre}<span class="slabel" style="${bs}">${sec.statut_label}</span></div>
@@ -1051,7 +1078,7 @@ ${(sec.article||sec.page)?`<div class="ssource">${sec.article||''}${sec.article&
 </div></div>
 ${hasDetail?`<div class="panel"><div class="pt">Analyse détaillée</div>${sec.analyse_detaillee.split(/\n+/).filter(Boolean).map(l=>'<p>'+l+'</p>').join('')}</div>`:''}
 ${(hasRule||hasCitation)?`<div class="panel"><div class="pt">Texte réglementaire</div>${hasRule?'<div class="rtag">'+sec.regle_principale+'</div>':''}${hasCitation?'<blockquote>'+sec.citation+'</blockquote>':''}</div>`:''}
-${hasVigilance?`<div class="panel"><div class="pt">Points de vigilance</div><ul>${sec.points_vigilance.map(p=>'<li>'+p+'</li>').join('')}</ul></div>`:''}
+${showVigilExp?`<div class="panel"><div class="pt">Points de vigilance</div>${hasVigilance?'<ul>'+sec.points_vigilance.map(p=>'<li>'+p+'</li>').join('')+'</ul>':''}${docsExpHtml}${actionExpHtml}</div>`:''}
 </div>`;
   });
   let cHtml = '';
