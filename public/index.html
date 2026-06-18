@@ -501,6 +501,33 @@ let pluUrl = null, pluBase64 = null, zonageUrl = null, planUrls = [], currentAdd
 const results = {};
 let currentStep = 0;
 
+const PLAN_FALLBACK_NAMES_CLIENT = {
+  '1': 'Plan général',
+  '2': 'Plan des prescriptions et périmètres particuliers',
+  '3': 'Plan des protections patrimoniales, écologiques et paysagères',
+  '4': 'Plan de pleine-terre et coefficient de biotope surfacique',
+  '5': 'Plan des secteurs de stationnement'
+};
+
+function normalizeGpuDocumentsClient(rawPlans) {
+  if (!Array.isArray(rawPlans)) return [];
+  return rawPlans.map((p, idx) => {
+    const rawName = String(p.nom || p.name || p.title || p.reference || '').trim();
+    const rawUrl = String(p.url || p.href || '').trim();
+    const sourceText = (rawName + ' ' + rawUrl).toLowerCase();
+    const numMatch = sourceText.match(/(?:plan\s+graphique\s+|plan\s+|graphique[_\-\s]*)(\d+)/i) || sourceText.match(/(?:^|[^0-9])4[._-](\d)(?:[^0-9]|$)/);
+    const num = numMatch ? numMatch[1] : null;
+    const isGeneric = !rawName || /^document\s*\d*$/i.test(rawName) || /^plan\s*graphique\s*\d*$/i.test(rawName) || /^plan\s*\d*$/i.test(rawName) || /^r[eè]glement\s+graphique/i.test(rawName);
+    let nom = rawName;
+    if (num && (isGeneric || PLAN_FALLBACK_NAMES_CLIENT[num])) {
+      nom = 'Plan graphique n°' + num + ' — ' + (PLAN_FALLBACK_NAMES_CLIENT[num] || rawName || 'Document graphique');
+    } else if (!nom) {
+      nom = 'Document graphique ' + (idx + 1);
+    }
+    return { ...p, nom, reference: num ? 'Plan graphique n°' + num : (p.reference || nom), num, url: rawUrl };
+  });
+}
+
 function togglePlans() {
   const el = document.getElementById('plansList');
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
@@ -683,7 +710,7 @@ async function findZone() {
     if (d.pluUrl) {
       pluUrl = d.pluUrl;
       zonageUrl = d.zonageUrl || null;
-      planUrls = d.planUrls || [];
+      planUrls = normalizeGpuDocumentsClient(d.planUrls || []);
       smsData = d.sms || null;
       const po = document.getElementById('pluOk');
       let html = '📄 <strong style="color:var(--ink2)">' + (d.pluName||'Règlement PLU') + '</strong>';
@@ -992,10 +1019,11 @@ function renderAnalysis(data) {
     const hasAction = sec.action_recommandee && sec.action_recommandee.length > 5;
     const showVigilPanel = hasVigilance || hasDocs || hasAction;
     const docsHtml = hasDocs ? sec.documents_a_consulter.map(d => {
+      const displayName = d.nom_document && d.nom_document !== d.reference ? d.nom_document : d.reference;
       const linkHtml = d.url
-        ? `<a href="${escHtml(d.url)}" target="_blank" rel="noopener">Télécharger / consulter</a>`
-        : `<span class="sa-doc-fallback">Lien direct non disponible — consulter le Géoportail de l'Urbanisme.</span>`;
-      return `<div class="sa-doc-block"><div class="sa-doc-title">📄 ${escHtml(d.reference)}${d.nom_document ? ' — ' + escHtml(d.nom_document) : ''}</div><div class="sa-doc-raison">${escHtml(d.raison)}</div>${linkHtml}</div>`;
+        ? `<a href="${escHtml(d.url)}" target="_blank" rel="noopener">↗ Télécharger / consulter</a>`
+        : `<span class="sa-doc-fallback">Lien direct non disponible — consulter le Géoportail de l'Urbanisme pour cette commune.</span>`;
+      return `<div class="sa-doc-block"><div class="sa-doc-title">📄 ${escHtml(displayName)}</div><div class="sa-doc-raison">${escHtml(d.raison)}</div>${linkHtml}</div>`;
     }).join('') : '';
     html += `<div class="sa-section">
 <div class="sa-section-hd">
@@ -1064,10 +1092,11 @@ function generateExportHtml(data, zone, address, opLabel, date) {
     const hasAction = sec.action_recommandee && sec.action_recommandee.length > 5;
     const showVigilExp = hasVigilance || hasDocs || hasAction;
     const docsExpHtml = hasDocs ? sec.documents_a_consulter.map(d => {
+      const displayName = d.nom_document && d.nom_document !== d.reference ? d.nom_document : d.reference;
       const linkHtml = d.url
-        ? `<a href="${d.url}" style="color:#2563eb">Télécharger / consulter</a>`
-        : `<span style="color:#6b7280;font-style:italic">Lien direct non disponible — consulter le Géoportail de l'Urbanisme.</span>`;
-      return `<div style="margin-top:8px;padding:8px 12px;background:#eff6ff;border-radius:7px;border-left:3px solid #3b82f6;font-size:12px"><strong style="color:#1e40af">📄 ${d.reference}${d.nom_document?' — '+d.nom_document:''}</strong><br><span style="color:#374151">${d.raison}</span><br>${linkHtml}</div>`;
+        ? `<a href="${d.url}" style="color:#2563eb">↗ Télécharger / consulter</a>`
+        : `<span style="color:#6b7280;font-style:italic">Lien direct non disponible — consulter le Géoportail de l'Urbanisme pour cette commune.</span>`;
+      return `<div style="margin-top:8px;padding:8px 12px;background:#eff6ff;border-radius:7px;border-left:3px solid #3b82f6;font-size:12px"><strong style="color:#1e40af">📄 ${displayName}</strong><br><span style="color:#374151">${d.raison}</span><br>${linkHtml}</div>`;
     }).join('') : '';
     const actionExpHtml = hasAction ? `<div style="margin-top:6px;font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:5px 10px;border-left:3px solid #f59e0b">📋 ${sec.action_recommandee}</div>` : '';
     sHtml += `<div class="section">
