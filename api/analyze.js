@@ -2,69 +2,94 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse/lib/pdf-parse.js');
 
-const PROMPT = `Tu es un expert en droit de l'urbanisme français. Réponds de façon factuelle et concise — pas de paraphrase, pas de développement inutile. Chaque réponse = une règle + sa source. Rien d'autre.
+const PROMPT = `Tu es un expert en droit de l'urbanisme français et en faisabilité immobilière. Produis une note de faisabilité urbanistique de niveau professionnel, identique à celles produites par un cabinet d'architecte ou d'urbaniste pour un investisseur immobilier.
 
 Zone : {ZONE}{COMMUNE}
 Opération : {OPERATION}{PROJET}
 
 RÈGLES ABSOLUES :
-- Cite UNIQUEMENT ce qui est dans les extraits fournis. Si une information est absente : écris "Non trouvé dans les extraits." — ne jamais inventer un chiffre, un seuil ou un article.
+- Cite UNIQUEMENT ce qui est dans les extraits fournis. Si absent : statut "❓", resume "Non trouvé dans les extraits." — ne jamais inventer un chiffre, un seuil, un article ou une page.
 - Ne cite que les règles qui s'appliquent à {ZONE}. Ignore les autres zones et indices.
-- Pour chaque règle citée : texte exact entre guillemets + numéro d'article + numéro de page (marqueur --- PAGE N --- le plus proche).
+- Pour chaque règle : texte exact entre guillemets + article + page (marqueur --- PAGE N ---).
 - TABLEAUX : les lignes séparées par " | " sont des colonnes — extrais les valeurs cellule par cellule.
-- Zéro introduction, zéro conclusion, zéro reformulation. Va droit au fait.
+- Réponds UNIQUEMENT avec le bloc <json>...</json>. Aucun texte avant ni après.
 
 ---
 
-## ① Habitation — Logement et Hébergement
-**Logement :** ✅ Autorisé / ⚠️ Sous conditions / ❌ Interdit
-**Hébergement :** ✅ Autorisé / ⚠️ Sous conditions / ❌ Interdit
-Si sous conditions : une phrase, les conditions exactes.
-> *Art. XX :* "texte exact" — p. XX
+ANALYSE EN 10 SECTIONS DANS CET ORDRE EXACT :
+1. Habitation / destination
+2. Mixité sociale / SMS
+3. Taille minimale des logements / STML
+4. Mixité fonctionnelle
+5. Stationnement
+6. Hauteur
+7. Emprise au sol
+8. Espaces verts / pleine terre
+9. Implantation / prospects
+10. Risques, servitudes et prescriptions particulières
 
-## ② Mixité sociale (SMS / servitude de mixité)
-**Présence graphique sur la parcelle :** (voir donnée cartographique ci-dessus — confirmée ou à vérifier)
-**Règle applicable :**
-- Secteur SMS identifié : X (ex : SMS-1, SMS-2, aucun)
-- % LLS imposé : X%
-- Seuil de déclenchement : X m² SDP ou X logements
-- Champ d'application exact : "texte verbatim du règlement" (nouvelles constructions / reconstruction / extension / toutes opérations…)
-- **Applicable à cette opération :** ✅ Oui / ⚠️ Ambigu / ❌ Non
-  *Justification :* une phrase — expliquer pourquoi la règle s'applique OU ne s'applique pas à CE type d'opération (un changement de destination sans reconstruction n'est pas une construction neuve ; le préciser si le texte le distingue explicitement)
-> *Art. XX :* "texte exact" — p. XX
-Si non trouvé dans les extraits : écrire "Non trouvé dans les extraits." — ne jamais inventer de pourcentage ou de seuil.
+CHAMPS OBLIGATOIRES PAR SECTION :
+- titre : intitulé exact parmi la liste ci-dessus
+- statut : "✅" | "⚠️" | "❌" | "❓"
+- statut_label : "Applicable" | "Sous conditions" | "Non applicable" | "Non trouvé"
+- resume : 1-2 phrases — verdict immédiat pour CE projet
+- regle_principale : valeurs exactes (chiffres, %, seuils) ou "Non trouvé dans les extraits."
+- article : ex "Art. UH 1.2" — ou "" si absent
+- page : numéro de page (--- PAGE N ---) — ou "" si absent
+- analyse_detaillee : MINIMUM 200 mots, structuré ainsi :
+  (a) Règle applicable et son fondement réglementaire
+  (b) Champ d'application exact (verbatim) — qui est visé, qui ne l'est pas
+  (c) Seuils de déclenchement
+  (d) Exclusions et cas particuliers
+  (e) Interprétation juridique et qualification de l'opération
+  (f) Application concrète au projet décrit — conclusion claire (applicable / non applicable / ambigu)
+  (g) Conséquences opérationnelles pour le projet
+  (h) Marges de manœuvre éventuelles
+  (i) Risques identifiés
+- citation : extrait verbatim entre guillemets — ou "" si absent
+- points_vigilance : liste de 2 à 5 éléments concrets (plans à consulter, confirmations à obtenir, risques)
 
-## ③ Taille minimale des logements (STML)
-**Présence graphique sur la parcelle :** (voir donnée cartographique ci-dessus — confirmée ou à vérifier)
-**Règle applicable :**
-- Secteur STML identifié : X (ou aucun)
-- Surface minimale par logement : X m²
-- Répartition imposée par type : X% de T3+, X% de T1-T2… (uniquement si précisé dans les extraits)
-- Seuil de déclenchement : X logements ou X m² SDP
-- Champ d'application exact : "texte verbatim du règlement" (constructions à édifier / reconstruction / toutes opérations…)
-- **Applicable à cette opération :** ✅ Oui / ⚠️ Ambigu / ❌ Non
-  *Justification :* une phrase — le changement de destination sans reconstruction est-il explicitement visé par le texte ?
-> *Art. XX :* "texte exact" — p. XX
-Si non trouvé dans les extraits : écrire "Non trouvé dans les extraits." — ne jamais inventer de surface ou de répartition.
+STANDARD DE QUALITÉ pour analyse_detaillee :
+❌ Insuffisant : "65 % de T3+ à partir de 6 logements."
+✅ Attendu : "Le règlement impose, dans les secteurs STML, un minimum de 65 % de logements T3 ou plus dès lors que l'opération comporte 6 logements ou davantage. Cette obligation vise les 'constructions à édifier' et les 'opérations de reconstruction' selon les termes exacts du règlement. Or le projet consiste en un changement de destination d'un immeuble de bureaux existant, sans démolition ni reconstruction. Cette opération ne constitue pas une 'construction à édifier' au sens strict du PLU. La règle STML ne s'applique donc pas au projet tel que présenté. Conséquence opérationnelle : aucun quota de typologies n'est exigible — liberté totale sur la répartition T1/T2/T3+. Marge de manœuvre : cet avantage peut être utilisé pour optimiser la mixité commerciale selon le marché. Risque principal : si une démolition-reconstruction partielle intervient, même non intentionnelle, la qualification change et la règle STML s'applique intégralement."
 
-## ④ Mixité fonctionnelle
-**Règle applicable :**
-- % d'une autre destination imposé : X% (ex : 5% hors habitation)
-- Seuil de déclenchement : X logements ou X m² SDP
-- Champ d'application exact : "texte verbatim du règlement" (nouvelles constructions / reconstruction / toutes opérations…)
-- **Applicable à cette opération :** ✅ Oui / ⚠️ Ambigu / ❌ Non
-  *Justification :* une phrase — l'opération dépasse-t-elle le seuil ? Est-elle visée par le champ d'application ?
-> *Art. XX :* "texte exact" — p. XX
-Si non trouvé dans les extraits : écrire "Non trouvé dans les extraits." — ne jamais inventer de pourcentage ou de seuil.
-
-## ⑤ Stationnement
-- Secteur de stationnement identifié : X (ex : S1, S2, aucun)
-- Voitures logement : X place/logement (T1-T2), X place/logement (T3+)
-- Voitures hébergement : X place/chambre ou X place/m²
-- Vélos : X m²/logement ou X place/logement
-- Dérogation possible : oui/non
-> *Art. XX :* "texte exact" — p. XX
-Si non trouvé dans les extraits : "Non trouvé dans les extraits."`;
+FORMAT JSON OBLIGATOIRE :
+<json>
+{
+  "sections": [
+    {
+      "titre": "Habitation / destination",
+      "statut": "✅",
+      "statut_label": "Applicable",
+      "resume": "...",
+      "regle_principale": "...",
+      "article": "Art. XX",
+      "page": "XX",
+      "analyse_detaillee": "...",
+      "citation": "...",
+      "points_vigilance": ["...", "..."]
+    },
+    { "titre": "Mixité sociale / SMS", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
+    { "titre": "Taille minimale des logements / STML", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
+    { "titre": "Mixité fonctionnelle", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
+    { "titre": "Stationnement", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
+    { "titre": "Hauteur", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
+    { "titre": "Emprise au sol", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
+    { "titre": "Espaces verts / pleine terre", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
+    { "titre": "Implantation / prospects", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
+    { "titre": "Risques, servitudes et prescriptions particulières", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] }
+  ],
+  "conclusion_operationnelle": {
+    "points_bloquants": ["Contrainte empêchant ou limitant significativement le projet"],
+    "conditions": ["Règles applicables sous certaines conditions"],
+    "non_applicables": ["Règles identifiées mais non applicables à CE projet"],
+    "sujets_a_verifier": ["Points à confirmer auprès de la commune ou par consultation des plans"],
+    "opportunites": ["Avantages identifiés dans le règlement pour ce projet"],
+    "niveau_risque": "Faible",
+    "synthese": "Paragraphe de 100 à 200 mots rédigé pour un investisseur immobilier, résumant les enjeux, obstacles, libertés et prochaines étapes recommandées."
+  }
+}
+</json>`;
 
 const OPERATIONS = {
   destination: "Changement de destination — bureaux → logements, bâtiment existant",
@@ -76,6 +101,67 @@ const FALLBACK_URLS = {
   '200057867_zones': 'https://plainecommune.fr/fileadmin/user_upload/Portail_Plaine_Commune/LA_DOC/PROJET_DE_TERRITOIRE/PLUI/PLUi_Exutoire/TOME_4-REGLEMENT_ECRIT_ET_GRAPHIQUE/TOME_4-REGLEMENT_ECRIT/4-1-2_Partie_2_Reglements_de-zones/4-1-2-1_Zones_UMD_UMT_UM_UC_UH_UA_UE_UG_UVP_N_A/200057867_4-1-2-1_Reglements_des_zones.pdf',
   '200057867_general': 'https://plainecommune.fr/fileadmin/user_upload/Portail_Plaine_Commune/LA_DOC/PROJET_DE_TERRITOIRE/PLUI/PLUi_Exutoire/TOME_4-REGLEMENT_ECRIT_ET_GRAPHIQUE/TOME_4-REGLEMENT_ECRIT/200057867_4-1-1_Partie1_Definitions_et_dispositions_generales.pdf',
 };
+
+const SECTION_TITLES = [
+  'Habitation / destination',
+  'Mixité sociale / SMS',
+  'Taille minimale des logements / STML',
+  'Mixité fonctionnelle',
+  'Stationnement',
+  'Hauteur',
+  'Emprise au sol',
+  'Espaces verts / pleine terre',
+  'Implantation / prospects',
+  'Risques, servitudes et prescriptions particulières',
+];
+
+function normalizeAnalysis(parsed) {
+  const defaultSection = titre => ({
+    titre,
+    statut: '❓',
+    statut_label: 'Non trouvé',
+    resume: 'Non trouvé dans les extraits.',
+    regle_principale: 'Non trouvé dans les extraits.',
+    article: '',
+    page: '',
+    analyse_detaillee: 'Cette section n\'a pas pu être analysée dans les extraits disponibles. Vérifier manuellement dans le règlement écrit et les plans graphiques.',
+    citation: '',
+    points_vigilance: ['Vérifier manuellement dans le règlement et les plans graphiques.'],
+  });
+
+  const input = Array.isArray(parsed.sections) ? parsed.sections : [];
+  const sections = SECTION_TITLES.map(titre => {
+    const keyword = titre.split('/')[0].trim().toLowerCase();
+    const found = input.find(s => s && s.titre && s.titre.toLowerCase().includes(keyword));
+    if (!found) return defaultSection(titre);
+    return {
+      titre,
+      statut: found.statut || '❓',
+      statut_label: found.statut_label || 'Non trouvé',
+      resume: found.resume || 'Non trouvé dans les extraits.',
+      regle_principale: found.regle_principale || 'Non trouvé dans les extraits.',
+      article: found.article || '',
+      page: String(found.page || ''),
+      analyse_detaillee: found.analyse_detaillee || '',
+      citation: found.citation || '',
+      points_vigilance: Array.isArray(found.points_vigilance) ? found.points_vigilance : [],
+    };
+  });
+
+  const c = parsed.conclusion_operationnelle || {};
+  return {
+    sections,
+    conclusion_operationnelle: {
+      points_bloquants: Array.isArray(c.points_bloquants) ? c.points_bloquants : [],
+      conditions: Array.isArray(c.conditions) ? c.conditions : [],
+      non_applicables: Array.isArray(c.non_applicables) ? c.non_applicables : [],
+      sujets_a_verifier: Array.isArray(c.sujets_a_verifier) ? c.sujets_a_verifier : [],
+      opportunites: Array.isArray(c.opportunites) ? c.opportunites : [],
+      niveau_risque: c.niveau_risque || 'Moyen',
+      synthese: c.synthese || '',
+    },
+  };
+}
 
 // Extrait le texte d'un buffer PDF
 async function extractText(buffer) {
@@ -607,6 +693,24 @@ export default async function handler(req, res) {
       'r[ée]partition\\s+(?:des?\\s+)?(?:surfaces?|destinations?|usages?)',
       16000);
 
+    // 4. HAUTEUR — gabarit, Hmax, R+N, niveaux
+    const hauteurSection = extractTopicSections(fullText,
+      'hauteur\\s+(?:maximale?|des\\s+constructions|plafond|limit[ée]e?)|' +
+      '\\bHmax\\b|\\bH\\s*max\\b|hauteur\\s+absolue|hauteur\\s+totale|' +
+      'plafond\\s+de\\s+hauteur|gabarit|r[ée]glementation\\s+des\\s+hauteurs|' +
+      '\\bR\\s*\\+\\s*\\d|rez-de-chauss[ée]e\\s*\\+\\s*\\d|nombre\\s+d[e\']?[ée]tages?|' +
+      'couronnement|acrot[eè]re|fa[îi]tage',
+      12000);
+
+    // 5. EMPRISE AU SOL + PLEINE TERRE — CES, COS, espaces verts, perméabilité
+    const empriseSection = extractTopicSections(fullText,
+      'emprise\\s+au\\s+sol|coefficient\\s+d[e\']?(?:emprise|occupation|utilisation)|' +
+      '\\bCES\\b|\\bCOS\\b|\\bCUF\\b|\\bSEP\\b|' +
+      'pleine\\s+terre|espace(?:s)?\\s+(?:verts?|lib[rs]es?|perméables?|non[\\s-]imperméabilis[ée]s?)|' +
+      'coefficient\\s+(?:bio|vert|nature|perméabilité)|surface\\s+(?:perméable|végétalis[ée]|non[\\s-]imperméabilis[ée])|' +
+      'imperméabilis(?:ation|[ée])|végétalisa(?:tion|[ée])',
+      12000);
+
     // Fonction de déduplication : n'ajoute une section que si elle n'est pas
     // déjà couverte par le texte déjà envoyé
     function addIfNew(existing, section) {
@@ -621,7 +725,7 @@ export default async function handler(req, res) {
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
-          max_tokens: 9000,
+          max_tokens: 16000,
           messages: [{ role: 'user', content: promptText }]
         })
       });
@@ -649,6 +753,8 @@ export default async function handler(req, res) {
       { label: 'MIXITÉ SOCIALE / LOGEMENTS SOCIAUX', section: mixiteSection },
       { label: 'TAILLE MINIMALE / TYPOLOGIE DES LOGEMENTS', section: tailleSection },
       { label: 'MIXITÉ FONCTIONNELLE / LINÉAIRES COMMERCIAUX', section: mixiteFoncSection },
+      { label: 'HAUTEUR / GABARIT', section: hauteurSection },
+      { label: 'EMPRISE AU SOL / PLEINE TERRE / ESPACES VERTS', section: empriseSection },
     ]) {
       if (!section || !addIfNew(sendText, section)) continue;
       sendText += '\n\n--- ' + label + ' ---\n\n' + section;
@@ -661,7 +767,22 @@ export default async function handler(req, res) {
 
     let analysisText = await callClaude(fullPrompt);
     console.log('✓ Analyse OK');
-    return res.status(200).json({ success: true, zone, analysisType, result: analysisText });
+
+    let analysisData = null;
+    try {
+      const jsonMatch = analysisText.match(/<json>([\s\S]*?)<\/json>/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[1].trim());
+        analysisData = normalizeAnalysis(parsed);
+      }
+    } catch (e) {
+      console.log('JSON parsing failed:', e.message);
+    }
+
+    if (!analysisData) {
+      return res.status(200).json({ success: true, zone, analysisType, raw: analysisText });
+    }
+    return res.status(200).json({ success: true, zone, analysisType, ...analysisData });
 
   } catch(err) {
     console.error('Erreur:', err.message);
