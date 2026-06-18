@@ -218,6 +218,52 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
 .acc-bd p{margin:0 0 8px;font-size:14px}
 .acc-bd blockquote{background:#f5f7fa;border-left:3px solid #2C4A6E;padding:8px 14px;margin:8px 0;font-size:13px;color:#444;border-radius:0 6px 6px 0}
 .acc-bd table{margin:10px 0}
+
+/* ── STRUCTURED ANALYSIS CARDS ── */
+.sa-section{background:var(--s);border:1.5px solid var(--bdr);border-radius:var(--r);overflow:hidden;margin-bottom:10px;transition:border-color .2s}
+.sa-section-hd{display:flex;align-items:flex-start;gap:12px;padding:14px 18px 10px}
+.sa-badge{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;font-size:15px;flex-shrink:0;margin-top:1px}
+.sa-badge.ok{background:var(--green-bg)}.sa-badge.warn{background:var(--amber-bg)}.sa-badge.nok{background:var(--red-l)}.sa-badge.unk{background:var(--s2)}
+.sa-info{flex:1;min-width:0}
+.sa-title{font-size:13.5px;font-weight:600;color:var(--ink);margin-bottom:3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sa-title-label{font-size:11px;font-weight:500;border-radius:5px;padding:1px 7px}
+.sa-title-label.ok{background:var(--green-bg);color:var(--green-t)}.sa-title-label.warn{background:var(--amber-bg);color:var(--amber-t)}.sa-title-label.nok{background:var(--red-l);color:var(--red-t)}.sa-title-label.unk{background:var(--s2);color:var(--ink3)}
+.sa-resume{font-size:13px;color:var(--ink2);line-height:1.65}
+.sa-source{font-size:11px;color:var(--ink3);margin-top:5px}
+.sa-source strong{color:var(--blue)}
+.sa-toggles{display:flex;gap:6px;flex-wrap:wrap;padding:0 18px 12px}
+.sa-toggle-btn{display:flex;align-items:center;gap:5px;background:none;border:1px solid var(--bdr);border-radius:7px;padding:5px 11px;font-family:'Geist',sans-serif;font-size:12px;color:var(--ink2);cursor:pointer;transition:all .15s}
+.sa-toggle-btn:hover{background:var(--blue-l);border-color:var(--blue);color:var(--blue)}
+.sa-toggle-btn.active{background:var(--blue-l);border-color:var(--blue);color:var(--blue)}
+.sa-toggle-btn svg{width:11px;height:11px;transition:transform .2s;flex-shrink:0}
+.sa-toggle-btn.active svg{transform:rotate(180deg)}
+.sa-panel{border-top:1px solid var(--bdr);padding:14px 18px;animation:fadeUp .2s ease}
+.sa-panel h4{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin:12px 0 6px}
+.sa-panel h4:first-child{margin-top:0}
+.sa-panel p{font-size:13px;line-height:1.75;color:var(--ink2);margin-bottom:8px}
+.sa-panel p:last-child{margin-bottom:0}
+.sa-panel blockquote{background:var(--s2);border-left:3px solid var(--blue);padding:9px 14px;margin:8px 0;font-size:12.5px;line-height:1.7;color:#334155;border-radius:0 6px 6px 0}
+.sa-panel ul{padding-left:16px;margin:4px 0}
+.sa-panel li{font-size:12.5px;line-height:1.7;color:var(--ink2);margin-bottom:4px}
+.sa-rule-tag{display:inline-block;background:#eff6ff;color:#1d4ed8;border-radius:5px;padding:2px 10px;font-size:12px;font-weight:500;margin-bottom:8px}
+/* ── CONCLUSION OPÉRATIONNELLE ── */
+.sa-conclusion{background:var(--s);border:1.5px solid var(--bdr);border-radius:var(--r);overflow:hidden;margin-top:16px}
+.sa-conclusion-hd{display:flex;align-items:center;gap:12px;padding:14px 18px;background:linear-gradient(135deg,#1a2e4a 0%,#2C4A6E 100%)}
+.sa-conclusion-hd h3{font-size:14px;font-weight:600;color:#fff;flex:1}
+.risk-badge{font-size:11.5px;font-weight:600;padding:3px 12px;border-radius:99px;letter-spacing:.03em}
+.risk-badge.risk-low{background:#dcfce7;color:#166534}
+.risk-badge.risk-mid{background:#fef9c3;color:#854d0e}
+.risk-badge.risk-high{background:#fee2e2;color:#991b1b}
+.sa-conclusion-body{padding:14px 18px}
+.sa-conc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+@media(max-width:640px){.sa-conc-grid{grid-template-columns:1fr}}
+.sa-conc-box{background:var(--s2);border:1px solid var(--bdr);border-radius:10px;padding:12px 14px}
+.sa-conc-box h4{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:7px}
+.sa-conc-box.red{border-color:#fecaca;background:var(--red-l)}.sa-conc-box.red h4{color:var(--red-t)}
+.sa-conc-box.amber{border-color:#fde68a;background:var(--amber-bg)}.sa-conc-box.amber h4{color:var(--amber-t)}
+.sa-conc-box.green{border-color:#a7f3d0;background:var(--green-bg)}.sa-conc-box.green h4{color:var(--green-t)}
+.sa-conc-box li{font-size:12px;line-height:1.65;color:var(--ink2);margin-bottom:4px}
+.sa-synthese{font-size:13.5px;line-height:1.85;color:var(--ink2);border-top:1px solid var(--bdr);padding-top:12px;margin-top:4px}
 </style>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 </head>
@@ -731,13 +777,18 @@ async function runAnalysis(type) {
     setProgress(type, 95, 'Finalisation…');
     const d = await safeJson(r);
     if (!r.ok) throw new Error(d.error);
-    results[type] = d.result;
+    if (d.sections) {
+      results[type] = { sections: d.sections, conclusion_operationnelle: d.conclusion_operationnelle };
+    } else {
+      results[type] = d.raw || d.result || '';
+    }
     setProgress(type, 100, 'Terminé !');
     await new Promise(res => setTimeout(res, 300));
     spEl.className = 'spin';
     restoreBtn(type);
     document.getElementById('zt-' + type).textContent = 'Zone ' + zone;
-    document.getElementById('rb-' + type).innerHTML = mdParse(d.result);
+    const r = results[type];
+    document.getElementById('rb-' + type).innerHTML = (r && typeof r === 'object' && r.sections) ? renderAnalysis(r) : mdParse(r || '');
     resEl.className = 'res on';
     delete abortControllers[type];
   } catch(e) {
@@ -753,11 +804,17 @@ async function runAnalysis(type) {
 function downloadNote(type) {
   const zone = document.getElementById('zone')?.value || '';
   const address = currentAddress || '';
-  const result = results[type] || '';
+  const result = results[type];
   const opLabels = {destination:'Changement de destination',surelevation:'Surélévation',extension:'Extension'};
+  const opLabel = opLabels[type] || type;
   const date = new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
-  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Note de synthèse PLU — ${zone}</title><style>body{font-family:'Segoe UI',Arial,sans-serif;max-width:780px;margin:40px auto;color:#1a1a1a;font-size:14px;line-height:1.7;padding:0 24px}.header{border-bottom:2px solid #2C4A6E;padding-bottom:16px;margin-bottom:24px}.header h1{font-size:20px;color:#2C4A6E;margin:0 0 4px}.header .meta{font-size:12px;color:#666}h2{font-size:15px;font-weight:600;color:#1a1a1a;margin:20px 0 8px;padding-left:10px;border-left:3px solid #2C4A6E}blockquote{background:#f5f5f3;border-left:3px solid #2C4A6E;padding:8px 14px;margin:10px 0;font-size:13px;color:#444;border-radius:0 5px 5px 0}p{margin:0 0 8px}strong{font-weight:600}table{width:100%;border-collapse:collapse;margin:12px 0}th{background:#2C4A6E;color:#fff;padding:8px 12px;text-align:left;font-size:13px}td{padding:7px 12px;border:1px solid #ddd;font-size:13px}tr:nth-child(even) td{background:#f9f8f6}.footer{margin-top:40px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#999}@media print{body{margin:20px}}</style>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"></head><body><div class="header"><h1>Note de synthèse — UrbanScan</h1><div class="meta"><strong>Adresse :</strong> ${address} &nbsp;|&nbsp; <strong>Zone :</strong> ${zone} &nbsp;|&nbsp; <strong>Opération :</strong> ${opLabels[type] || type}<br><strong>Date :</strong> ${date}</div></div>${mdToHtml(result)}<div class="footer">Document généré par UrbanScan · Analyse basée sur le règlement écrit. Pour un dépôt de permis, faire vérifier les plans graphiques par un architecte.</div></body></html>`;
+  let html;
+  if (result && typeof result === 'object' && result.sections) {
+    html = generateExportHtml(result, zone, address, opLabel, date);
+  } else {
+    const text = typeof result === 'string' ? result : '';
+    html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Note de synthèse PLU — ${zone}</title><style>body{font-family:'Segoe UI',Arial,sans-serif;max-width:780px;margin:40px auto;color:#1a1a1a;font-size:14px;line-height:1.7;padding:0 24px}.header{border-bottom:2px solid #2C4A6E;padding-bottom:16px;margin-bottom:24px}.header h1{font-size:20px;color:#2C4A6E;margin:0 0 4px}.header .meta{font-size:12px;color:#666}h2{font-size:15px;font-weight:600;color:#1a1a1a;margin:20px 0 8px;padding-left:10px;border-left:3px solid #2C4A6E}blockquote{background:#f5f5f3;border-left:3px solid #2C4A6E;padding:8px 14px;margin:10px 0;font-size:13px;color:#444;border-radius:0 5px 5px 0}p{margin:0 0 8px}strong{font-weight:600}table{width:100%;border-collapse:collapse;margin:12px 0}th{background:#2C4A6E;color:#fff;padding:8px 12px;text-align:left;font-size:13px}td{padding:7px 12px;border:1px solid #ddd;font-size:13px}tr:nth-child(even) td{background:#f9f8f6}.footer{margin-top:40px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#999}@media print{body{margin:20px}}</style></head><body><div class="header"><h1>Note de synthèse — UrbanScan</h1><div class="meta"><strong>Adresse :</strong> ${address} &nbsp;|&nbsp; <strong>Zone :</strong> ${zone} &nbsp;|&nbsp; <strong>Opération :</strong> ${opLabel}<br><strong>Date :</strong> ${date}</div></div>${mdToHtml(text)}<div class="footer">Document généré par UrbanScan · Analyse basée sur le règlement écrit. Pour un dépôt de permis, faire vérifier les plans graphiques par un architecte.</div></body></html>`;
+  }
   const blob = new Blob([html], {type:'text/html;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -856,6 +913,159 @@ function mdParse(s) {
   return out;
 }
 
+// ── STRUCTURED ANALYSIS RENDERER ──
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function paragraphs(text) {
+  if (!text) return '';
+  return text.split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => '<p>' + escHtml(l) + '</p>').join('');
+}
+function badgeClass(statut) {
+  if (statut === '✅') return 'ok';
+  if (statut === '⚠️') return 'warn';
+  if (statut === '❌') return 'nok';
+  return 'unk';
+}
+function riskClass(niveau) {
+  const n = (niveau || '').toLowerCase();
+  if (n === 'faible') return 'risk-low';
+  if (n.includes('lev') || n === 'élevé') return 'risk-high';
+  return 'risk-mid';
+}
+function renderAnalysis(data) {
+  const { sections, conclusion_operationnelle: conc } = data;
+  let html = '';
+  sections.forEach((sec, i) => {
+    const bc = badgeClass(sec.statut);
+    const pidDetail = 'sap-d-' + i, pidRegle = 'sap-r-' + i, pidVigil = 'sap-v-' + i;
+    const hasDetail = sec.analyse_detaillee && sec.analyse_detaillee.length > 10;
+    const hasCitation = sec.citation && sec.citation.length > 5;
+    const hasRule = sec.regle_principale && sec.regle_principale !== 'Non trouvé dans les extraits.' && sec.regle_principale.length > 5;
+    const hasVigilance = sec.points_vigilance && sec.points_vigilance.length > 0;
+    html += `<div class="sa-section">
+<div class="sa-section-hd">
+  <div class="sa-badge ${bc}">${escHtml(sec.statut)}</div>
+  <div class="sa-info">
+    <div class="sa-title">${escHtml(sec.titre)}<span class="sa-title-label ${bc}">${escHtml(sec.statut_label)}</span></div>
+    <div class="sa-resume">${escHtml(sec.resume)}</div>
+    ${(sec.article || sec.page) ? `<div class="sa-source">${sec.article ? '<strong>' + escHtml(sec.article) + '</strong>' : ''}${sec.article && sec.page ? ' · ' : ''}${sec.page ? 'p. ' + escHtml(sec.page) : ''}</div>` : ''}
+  </div>
+</div>
+<div class="sa-toggles">
+  ${hasDetail ? `<button class="sa-toggle-btn" onclick="togglePanel('${pidDetail}',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>Voir le détail</button>` : ''}
+  ${(hasRule || hasCitation) ? `<button class="sa-toggle-btn" onclick="togglePanel('${pidRegle}',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>Texte réglementaire</button>` : ''}
+  ${hasVigilance ? `<button class="sa-toggle-btn" onclick="togglePanel('${pidVigil}',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>Points de vigilance</button>` : ''}
+</div>
+${hasDetail ? `<div class="sa-panel" id="${pidDetail}" style="display:none">${paragraphs(sec.analyse_detaillee)}</div>` : ''}
+${(hasRule || hasCitation) ? `<div class="sa-panel" id="${pidRegle}" style="display:none">${hasRule ? '<h4>Règle principale</h4><div class="sa-rule-tag">' + escHtml(sec.regle_principale) + '</div>' : ''}${hasCitation ? '<h4>Extrait du règlement</h4><blockquote>' + escHtml(sec.citation) + '</blockquote>' : ''}</div>` : ''}
+${hasVigilance ? `<div class="sa-panel" id="${pidVigil}" style="display:none"><h4>Points de vigilance</h4><ul>${sec.points_vigilance.map(p => '<li>' + escHtml(p) + '</li>').join('')}</ul></div>` : ''}
+</div>`;
+  });
+  if (conc) {
+    const rc = riskClass(conc.niveau_risque);
+    html += `<div class="sa-conclusion">
+<div class="sa-conclusion-hd"><h3>Conclusion opérationnelle</h3><span class="risk-badge ${rc}">Risque ${escHtml(conc.niveau_risque)}</span></div>
+<div class="sa-conclusion-body">
+<div class="sa-conc-grid">
+  ${conc.points_bloquants?.length ? `<div class="sa-conc-box red"><h4>Points bloquants</h4><ul>${conc.points_bloquants.map(p=>'<li>'+escHtml(p)+'</li>').join('')}</ul></div>` : ''}
+  ${conc.conditions?.length ? `<div class="sa-conc-box amber"><h4>Sous conditions</h4><ul>${conc.conditions.map(p=>'<li>'+escHtml(p)+'</li>').join('')}</ul></div>` : ''}
+  ${conc.sujets_a_verifier?.length ? `<div class="sa-conc-box"><h4>À vérifier</h4><ul>${conc.sujets_a_verifier.map(p=>'<li>'+escHtml(p)+'</li>').join('')}</ul></div>` : ''}
+  ${conc.opportunites?.length ? `<div class="sa-conc-box green"><h4>Opportunités</h4><ul>${conc.opportunites.map(p=>'<li>'+escHtml(p)+'</li>').join('')}</ul></div>` : ''}
+  ${conc.non_applicables?.length ? `<div class="sa-conc-box"><h4>Non applicables</h4><ul>${conc.non_applicables.map(p=>'<li>'+escHtml(p)+'</li>').join('')}</ul></div>` : ''}
+</div>
+${conc.synthese ? `<div class="sa-synthese">${escHtml(conc.synthese)}</div>` : ''}
+</div>
+</div>`;
+  }
+  return html;
+}
+function togglePanel(id, btn) {
+  const panel = document.getElementById(id);
+  if (!panel) return;
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : '';
+  btn.classList.toggle('active', !isOpen);
+}
+
+// ── EXPORT HTML (all panels expanded) ──
+function badgeStyleExport(statut) {
+  if (statut === '✅') return 'background:#d1fae5;color:#065f46';
+  if (statut === '⚠️') return 'background:#fef3c7;color:#92400e';
+  if (statut === '❌') return 'background:#fee2e2;color:#991b1b';
+  return 'background:#f1f5f9;color:#64748b';
+}
+function generateExportHtml(data, zone, address, opLabel, date) {
+  const { sections, conclusion_operationnelle: conc } = data;
+  let sHtml = '';
+  sections.forEach(sec => {
+    const bs = badgeStyleExport(sec.statut);
+    const hasDetail = sec.analyse_detaillee && sec.analyse_detaillee.length > 10;
+    const hasCitation = sec.citation && sec.citation.length > 5;
+    const hasRule = sec.regle_principale && sec.regle_principale !== 'Non trouvé dans les extraits.' && sec.regle_principale.length > 5;
+    const hasVigilance = sec.points_vigilance && sec.points_vigilance.length > 0;
+    sHtml += `<div class="section">
+<div class="shd"><span class="badge" style="${bs}">${sec.statut}</span><div class="sinfo">
+<div class="stitle">${sec.titre}<span class="slabel" style="${bs}">${sec.statut_label}</span></div>
+<div class="sresume">${sec.resume}</div>
+${(sec.article||sec.page)?`<div class="ssource">${sec.article||''}${sec.article&&sec.page?' · ':''}${sec.page?'p. '+sec.page:''}</div>`:''}
+</div></div>
+${hasDetail?`<div class="panel"><div class="pt">Analyse détaillée</div>${sec.analyse_detaillee.split(/\n+/).filter(Boolean).map(l=>'<p>'+l+'</p>').join('')}</div>`:''}
+${(hasRule||hasCitation)?`<div class="panel"><div class="pt">Texte réglementaire</div>${hasRule?'<div class="rtag">'+sec.regle_principale+'</div>':''}${hasCitation?'<blockquote>'+sec.citation+'</blockquote>':''}</div>`:''}
+${hasVigilance?`<div class="panel"><div class="pt">Points de vigilance</div><ul>${sec.points_vigilance.map(p=>'<li>'+p+'</li>').join('')}</ul></div>`:''}
+</div>`;
+  });
+  let cHtml = '';
+  if (conc) {
+    const rs = conc.niveau_risque==='Faible'?'background:#dcfce7;color:#166534':conc.niveau_risque==='Élevé'?'background:#fee2e2;color:#991b1b':'background:#fef9c3;color:#854d0e';
+    cHtml = `<div class="conclusion"><div class="chd"><span>Conclusion opérationnelle</span><span class="risk" style="${rs}">Risque ${conc.niveau_risque}</span></div><div class="cbody">
+<div class="grid">
+${conc.points_bloquants?.length?`<div class="box red"><div class="bt">Points bloquants</div><ul>${conc.points_bloquants.map(p=>'<li>'+p+'</li>').join('')}</ul></div>`:''}
+${conc.conditions?.length?`<div class="box amber"><div class="bt">Sous conditions</div><ul>${conc.conditions.map(p=>'<li>'+p+'</li>').join('')}</ul></div>`:''}
+${conc.sujets_a_verifier?.length?`<div class="box"><div class="bt">À vérifier</div><ul>${conc.sujets_a_verifier.map(p=>'<li>'+p+'</li>').join('')}</ul></div>`:''}
+${conc.opportunites?.length?`<div class="box green"><div class="bt">Opportunités</div><ul>${conc.opportunites.map(p=>'<li>'+p+'</li>').join('')}</ul></div>`:''}
+${conc.non_applicables?.length?`<div class="box"><div class="bt">Non applicables</div><ul>${conc.non_applicables.map(p=>'<li>'+p+'</li>').join('')}</ul></div>`:''}
+</div>
+${conc.synthese?`<div class="synthese">${conc.synthese}</div>`:''}
+</div></div>`;
+  }
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Note de faisabilité PLU — ${zone}</title><style>
+body{font-family:'Segoe UI',Arial,sans-serif;max-width:800px;margin:40px auto;color:#1a1a1a;font-size:14px;line-height:1.7;padding:0 24px}
+.header{border-bottom:2px solid #2C4A6E;padding-bottom:16px;margin-bottom:24px}
+.header h1{font-size:20px;color:#2C4A6E;margin:0 0 4px}.header .meta{font-size:12px;color:#666}
+.section{border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:12px}
+.shd{display:flex;align-items:flex-start;gap:12px;padding:14px 18px 10px}
+.badge{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;font-size:14px;flex-shrink:0;margin-top:2px}
+.sinfo{flex:1}
+.stitle{font-size:13.5px;font-weight:600;color:#1a1a1a;margin-bottom:3px}
+.slabel{display:inline-block;font-size:11px;font-weight:500;border-radius:4px;padding:1px 7px;margin-left:8px}
+.sresume{font-size:13px;color:#4a5568;line-height:1.65}
+.ssource{font-size:11px;color:#3b82f6;margin-top:4px}
+.panel{border-top:1px solid #e2e8f0;padding:12px 18px}
+.pt{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:8px}
+.panel p{margin:0 0 8px;font-size:13px;color:#4a5568;line-height:1.7}.panel p:last-child{margin-bottom:0}
+blockquote{background:#f8fafc;border-left:3px solid #2C4A6E;padding:8px 14px;margin:8px 0;font-size:12.5px;color:#334155;border-radius:0 5px 5px 0}
+.rtag{display:inline-block;background:#eff6ff;color:#1d4ed8;border-radius:5px;padding:2px 10px;font-size:12px;font-weight:500;margin-bottom:8px}
+ul{padding-left:16px;margin:4px 0}li{font-size:12.5px;line-height:1.65;color:#4a5568;margin-bottom:3px}
+.conclusion{border:1.5px solid #2C4A6E;border-radius:12px;overflow:hidden;margin-top:20px}
+.chd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:linear-gradient(135deg,#1a2e4a 0%,#2C4A6E 100%);color:#fff;font-size:14px;font-weight:600}
+.risk{font-size:11.5px;font-weight:600;padding:3px 12px;border-radius:99px}
+.cbody{padding:14px 18px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:11px 14px}
+.box.red{background:#fff5f5;border-color:#fecaca}.box.amber{background:#fffbeb;border-color:#fde68a}.box.green{background:#f0fdf4;border-color:#86efac}
+.bt{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94a3b8;margin-bottom:7px}
+.box.red .bt{color:#991b1b}.box.amber .bt{color:#92400e}.box.green .bt{color:#166534}
+.synthese{font-size:13.5px;line-height:1.85;color:#4a5568;border-top:1px solid #e2e8f0;padding-top:12px;margin-top:12px}
+.footer{margin-top:40px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8}
+@media print{body{margin:20px}}
+</style></head><body>
+<div class="header"><h1>Note de faisabilité urbanistique — UrbanScan</h1><div class="meta"><strong>Adresse :</strong> ${address} &nbsp;|&nbsp; <strong>Zone :</strong> ${zone} &nbsp;|&nbsp; <strong>Opération :</strong> ${opLabel}<br><strong>Date :</strong> ${date}</div></div>
+${sHtml}${cHtml}
+<div class="footer">Document généré par UrbanScan · Analyse basée sur le règlement écrit. Pour un dépôt de permis, faire vérifier les plans graphiques par un architecte.</div>
+</body></html>`;
+}
+
 function toggleAcc(id) {
   const bd = document.getElementById(id);
   const item = bd.closest('.acc-item');
@@ -867,7 +1077,9 @@ function toggleAcc(id) {
 
 function copyR(type) {
   if (!results[type]) return;
-  navigator.clipboard.writeText(results[type]).then(() => {
+  const r = results[type];
+  const text = (r && typeof r === 'object') ? JSON.stringify(r, null, 2) : r;
+  navigator.clipboard.writeText(text).then(() => {
     const b = document.querySelector('#res-'+type+' .bsm.blue');
     b.textContent = '✓ Copié !';
     setTimeout(() => b.innerHTML = '📋 Copier', 2000);
