@@ -47,7 +47,13 @@ CHAMPS OBLIGATOIRES PAR SECTION :
   (h) Marges de manœuvre éventuelles
   (i) Risques identifiés
 - citation : extrait verbatim entre guillemets — ou "" si absent
-- points_vigilance : liste de 2 à 5 éléments concrets (plans à consulter, confirmations à obtenir, risques)
+- points_vigilance : liste de 2 à 4 éléments concrets (plans à consulter, confirmations à obtenir, risques)
+
+CONTRAINTES DE LONGUEUR (impératives — un JSON tronqué est inutilisable) :
+- analyse_detaillee : MINIMUM 200 mots, MAXIMUM 1 200 caractères
+- citation : MAXIMUM 800 caractères
+- points_vigilance : 2 à 4 éléments, JAMAIS plus de 4
+- synthese dans conclusion_operationnelle : MAXIMUM 200 mots
 
 STANDARD DE QUALITÉ pour analyse_detaillee :
 ❌ Insuffisant : "65 % de T3+ à partir de 6 logements."
@@ -115,6 +121,17 @@ const SECTION_TITLES = [
   'Risques, servitudes et prescriptions particulières',
 ];
 
+const STATUT_FROM_LABEL = { 'applicable': '✅', 'sous conditions': '⚠️', 'non applicable': '❌', 'non trouvé': '❓' };
+const LABEL_FROM_STATUT = { '✅': 'Applicable', '⚠️': 'Sous conditions', '❌': 'Non applicable', '❓': 'Non trouvé' };
+
+function coerceStatut(rawStatut, rawLabel) {
+  const s = (rawStatut || '').trim();
+  if (LABEL_FROM_STATUT[s]) return { statut: s, statut_label: LABEL_FROM_STATUT[s] };
+  const lNorm = (rawLabel || '').toLowerCase().trim();
+  if (STATUT_FROM_LABEL[lNorm]) return { statut: STATUT_FROM_LABEL[lNorm], statut_label: rawLabel };
+  return { statut: '❓', statut_label: 'Non trouvé' };
+}
+
 function normalizeAnalysis(parsed) {
   const defaultSection = titre => ({
     titre,
@@ -134,17 +151,18 @@ function normalizeAnalysis(parsed) {
     const keyword = titre.split('/')[0].trim().toLowerCase();
     const found = input.find(s => s && s.titre && s.titre.toLowerCase().includes(keyword));
     if (!found) return defaultSection(titre);
+    const { statut, statut_label } = coerceStatut(found.statut, found.statut_label);
     return {
       titre,
-      statut: found.statut || '❓',
-      statut_label: found.statut_label || 'Non trouvé',
+      statut,
+      statut_label,
       resume: found.resume || 'Non trouvé dans les extraits.',
       regle_principale: found.regle_principale || 'Non trouvé dans les extraits.',
       article: found.article || '',
       page: String(found.page || ''),
       analyse_detaillee: found.analyse_detaillee || '',
       citation: found.citation || '',
-      points_vigilance: Array.isArray(found.points_vigilance) ? found.points_vigilance : [],
+      points_vigilance: Array.isArray(found.points_vigilance) ? found.points_vigilance.slice(0, 4) : [],
     };
   });
 
@@ -770,7 +788,9 @@ export default async function handler(req, res) {
 
     let analysisData = null;
     try {
-      const jsonMatch = analysisText.match(/<json>([\s\S]*?)<\/json>/);
+      // Accepte <json>…</json> ou ```json … ``` (les deux formats que Claude peut produire)
+      const jsonMatch = analysisText.match(/<json>([\s\S]*?)<\/json>/)
+        || analysisText.match(/```json\s*([\s\S]*?)```/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[1].trim());
         analysisData = normalizeAnalysis(parsed);
