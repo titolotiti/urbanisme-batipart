@@ -7,11 +7,11 @@ const PROMPT = `Tu es un expert en droit de l'urbanisme français. Réponds de f
 Zone : {ZONE}{COMMUNE}
 Opération : {OPERATION}{PROJET}
 
-RÈGLES :
-- Cite UNIQUEMENT ce qui est dans les extraits. Si absent : "Non trouvé dans les extraits."
+RÈGLES ABSOLUES :
+- Cite UNIQUEMENT ce qui est dans les extraits fournis. Si une information est absente : écris "Non trouvé dans les extraits." — ne jamais inventer un chiffre, un seuil ou un article.
 - Ne cite que les règles qui s'appliquent à {ZONE}. Ignore les autres zones et indices.
-- Pour chaque règle : texte exact entre guillemets + article + page.
-- TABLEAUX : les lignes séparées par " | " sont des colonnes de tableau — extrais les valeurs.
+- Pour chaque règle citée : texte exact entre guillemets + numéro d'article + numéro de page (marqueur --- PAGE N --- le plus proche).
+- TABLEAUX : les lignes séparées par " | " sont des colonnes — extrais les valeurs cellule par cellule.
 - Zéro introduction, zéro conclusion, zéro reformulation. Va droit au fait.
 
 ---
@@ -20,42 +20,51 @@ RÈGLES :
 **Logement :** ✅ Autorisé / ⚠️ Sous conditions / ❌ Interdit
 **Hébergement :** ✅ Autorisé / ⚠️ Sous conditions / ❌ Interdit
 Si sous conditions : une phrase, les conditions exactes.
-> *Art. XX :* "texte exact"
+> *Art. XX :* "texte exact" — p. XX
 
-## ② Mixité sociale
-**Statut parcelle :** (voir donnée cartographique ci-dessus)
+## ② Mixité sociale (SMS / servitude de mixité)
+**Présence graphique sur la parcelle :** (voir donnée cartographique ci-dessus — confirmée ou à vérifier)
 **Règle applicable :**
+- Secteur SMS identifié : X (ex : SMS-1, SMS-2, aucun)
 - % LLS imposé : X%
-- Seuil déclenchement : X m² SDP / X logements
-- Champ d'application : "texte exact des termes" (nouvelles constructions / reconstruction / surfaces nouvellement créées...)
-- **Applicable à cette opération :** ✅ Oui / ⚠️ Ambigu / ❌ Non — une phrase de justification
-> *Art. XX :* "texte exact"
-Si non trouvé : "Non trouvé dans les extraits."
+- Seuil de déclenchement : X m² SDP ou X logements
+- Champ d'application exact : "texte verbatim du règlement" (nouvelles constructions / reconstruction / extension / toutes opérations…)
+- **Applicable à cette opération :** ✅ Oui / ⚠️ Ambigu / ❌ Non
+  *Justification :* une phrase — expliquer pourquoi la règle s'applique OU ne s'applique pas à CE type d'opération (un changement de destination sans reconstruction n'est pas une construction neuve ; le préciser si le texte le distingue explicitement)
+> *Art. XX :* "texte exact" — p. XX
+Si non trouvé dans les extraits : écrire "Non trouvé dans les extraits." — ne jamais inventer de pourcentage ou de seuil.
 
-## ③ Taille minimale des logements
-- Superficie min par logement : X m²
-- Répartition imposée : X% de T3+, X% de T1-T2...
-- Seuil déclenchement : X logements / X m² SDP
-- **Applicable :** ✅ / ⚠️ / ❌ — une phrase
-> *Art. XX :* "texte exact"
-Si non trouvé : "Non trouvé dans les extraits."
+## ③ Taille minimale des logements (STML)
+**Présence graphique sur la parcelle :** (voir donnée cartographique ci-dessus — confirmée ou à vérifier)
+**Règle applicable :**
+- Secteur STML identifié : X (ou aucun)
+- Surface minimale par logement : X m²
+- Répartition imposée par type : X% de T3+, X% de T1-T2… (uniquement si précisé dans les extraits)
+- Seuil de déclenchement : X logements ou X m² SDP
+- Champ d'application exact : "texte verbatim du règlement" (constructions à édifier / reconstruction / toutes opérations…)
+- **Applicable à cette opération :** ✅ Oui / ⚠️ Ambigu / ❌ Non
+  *Justification :* une phrase — le changement de destination sans reconstruction est-il explicitement visé par le texte ?
+> *Art. XX :* "texte exact" — p. XX
+Si non trouvé dans les extraits : écrire "Non trouvé dans les extraits." — ne jamais inventer de surface ou de répartition.
 
 ## ④ Mixité fonctionnelle
-- % logement imposé : X%
-- % commerce/activité imposé : X%
-- Linéaire commercial : oui/non — plan à consulter
-- Seuil : X m² / X logements
-- **Applicable :** ✅ / ⚠️ / ❌ — une phrase
-> *Art. XX :* "texte exact"
-Si non trouvé : "Non trouvé dans les extraits."
+**Règle applicable :**
+- % d'une autre destination imposé : X% (ex : 5% hors habitation)
+- Seuil de déclenchement : X logements ou X m² SDP
+- Champ d'application exact : "texte verbatim du règlement" (nouvelles constructions / reconstruction / toutes opérations…)
+- **Applicable à cette opération :** ✅ Oui / ⚠️ Ambigu / ❌ Non
+  *Justification :* une phrase — l'opération dépasse-t-elle le seuil ? Est-elle visée par le champ d'application ?
+> *Art. XX :* "texte exact" — p. XX
+Si non trouvé dans les extraits : écrire "Non trouvé dans les extraits." — ne jamais inventer de pourcentage ou de seuil.
 
 ## ⑤ Stationnement
+- Secteur de stationnement identifié : X (ex : S1, S2, aucun)
 - Voitures logement : X place/logement (T1-T2), X place/logement (T3+)
 - Voitures hébergement : X place/chambre ou X place/m²
 - Vélos : X m²/logement ou X place/logement
 - Dérogation possible : oui/non
-> *Art. XX :* "texte exact"
-Si non trouvé : "Non trouvé dans les extraits."`;
+> *Art. XX :* "texte exact" — p. XX
+Si non trouvé dans les extraits : "Non trouvé dans les extraits."`;
 
 const OPERATIONS = {
   destination: "Changement de destination — bureaux → logements, bâtiment existant",
@@ -70,16 +79,29 @@ const FALLBACK_URLS = {
 
 // Extrait le texte d'un buffer PDF
 async function extractText(buffer) {
-  // Extraction standard
-  const data = await pdfParse(buffer);
+  let pageNum = 0;
+
+  // pagerender : réplique le rendu par défaut de pdf-parse en injectant
+  // un marqueur --- PAGE N --- avant chaque page, ce qui permet à Claude
+  // de citer les numéros de page réels plutôt que de les inventer.
+  const options = {
+    pagerender: async function(pageData) {
+      pageNum++;
+      const textContent = await pageData.getTextContent();
+      let lastY = null;
+      let text = '';
+      for (const item of textContent.items) {
+        if (lastY !== null && lastY !== item.transform[5]) text += '\n';
+        text += item.str;
+        lastY = item.transform[5];
+      }
+      return `\n--- PAGE ${pageNum} ---\n${text}`;
+    }
+  };
+
+  const data = await pdfParse(buffer, options);
   let text = data.text || '';
-
-  // Post-traitement : répare les tableaux mal extraits.
-  // pdf-parse sort parfois les colonnes dans le mauvais ordre.
-  // On détecte les blocs suspects (lignes très courtes qui se suivent
-  // avec des nombres intercalés) et on les reformate en colonnes.
   text = repairTableBlocks(text);
-
   return text;
 }
 
@@ -226,7 +248,7 @@ export default async function handler(req, res) {
     .replace('{ZONE}', zone)
     .replace('{COMMUNE}', communeInfo + plansInfo + smsInfo + zoneNote)
     .replace('{OPERATION}', OPERATIONS[analysisType] || analysisType)
-    .replace('{PROJET}', projet ? '\nDescription du projet envisagé par le client (raisonne sur CE projet précis, notamment pour l\'applicabilité des servitudes en ③) : ' + String(projet).slice(0, 1500) : '');
+    .replace('{PROJET}', projet ? '\nDescription du projet envisagé par le client (raisonne sur CE projet précis, notamment pour l\'applicabilité des règles en ②③④) : ' + String(projet).slice(0, 1500) : '');
 
   try {
     // Téléchargement plafonné en streaming : coupe NET au-delà de maxBytes,
@@ -418,15 +440,7 @@ export default async function handler(req, res) {
     }
 
     // Extraction intelligente de la section de zone
-    // Base de zone : lettres initiales + chiffre immédiat uniquement
-  // Ex: U1-C-1→U1, UM1c3→UM1, UPGE06→UPGE06, UAb→UA, U4a→U4
-  const baseZone = (zone.match(/^([A-Z]+\d*)/)?.[1]) || zone;
-  // Zone courte pour les recherches thématiques (SMS, taille, mixité fonctionnelle) :
-  // uniquement les 2 premières lettres + chiffre optionnel — ignore les indices
-  // Ex: U1-C-1→U1, UPGE06→UP... non, garder baseZone qui est déjà correct
-  // En réalité : baseZone suffit (U1, UMH, UPGE06 sont déjà les bons codes)
-  // shortZone = 2 premières lettres SEULEMENT pour les recherches dans fullText
-  const shortZone = zone.replace(/^([A-Z]{1,4}\d?).*$/, '$1').toUpperCase();
+    const shortZone = zone.replace(/^([A-Z]{1,4}\d?).*$/, '$1').toUpperCase();
   console.log('Zone:', zone, '| base:', baseZone, '| short:', shortZone);
 
     function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -646,9 +660,6 @@ export default async function handler(req, res) {
     const fullPrompt = 'Voici les extraits du règlement PLU pour la zone "' + zone + '".\n\nRÈGLE ABSOLUE : ne cite et n\'utilise QUE les dispositions présentes dans les extraits ci-dessous.\n\n' + sendText + '\n\n---\n\n' + prompt;
 
     let analysisText = await callClaude(fullPrompt);
-    console.log('✓ Analyse OK');
-
-
     console.log('✓ Analyse OK');
     return res.status(200).json({ success: true, zone, analysisType, result: analysisText });
 
