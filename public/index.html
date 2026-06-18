@@ -501,33 +501,6 @@ let pluUrl = null, pluBase64 = null, zonageUrl = null, planUrls = [], currentAdd
 const results = {};
 let currentStep = 0;
 
-const PLAN_FALLBACK_NAMES_CLIENT = {
-  '1': 'Plan général',
-  '2': 'Plan des prescriptions et périmètres particuliers',
-  '3': 'Plan des protections patrimoniales, écologiques et paysagères',
-  '4': 'Plan de pleine-terre et coefficient de biotope surfacique',
-  '5': 'Plan des secteurs de stationnement'
-};
-
-function normalizeGpuDocumentsClient(rawPlans) {
-  if (!Array.isArray(rawPlans)) return [];
-  return rawPlans.map((p, idx) => {
-    const rawName = String(p.nom || p.name || p.title || p.reference || '').trim();
-    const rawUrl = String(p.url || p.href || '').trim();
-    const sourceText = (rawName + ' ' + rawUrl).toLowerCase();
-    const numMatch = sourceText.match(/(?:plan\s+graphique\s+|plan\s+|graphique[_\-\s]*)(\d+)/i) || sourceText.match(/(?:^|[^0-9])4[._-](\d)(?:[^0-9]|$)/);
-    const num = numMatch ? numMatch[1] : null;
-    const isGeneric = !rawName || /^document\s*\d*$/i.test(rawName) || /^plan\s*graphique\s*\d*$/i.test(rawName) || /^plan\s*\d*$/i.test(rawName) || /^r[eè]glement\s+graphique/i.test(rawName);
-    let nom = rawName;
-    if (num && (isGeneric || PLAN_FALLBACK_NAMES_CLIENT[num])) {
-      nom = 'Plan graphique n°' + num + ' — ' + (PLAN_FALLBACK_NAMES_CLIENT[num] || rawName || 'Document graphique');
-    } else if (!nom) {
-      nom = 'Document graphique ' + (idx + 1);
-    }
-    return { ...p, nom, reference: num ? 'Plan graphique n°' + num : (p.reference || nom), num, url: rawUrl };
-  });
-}
-
 function togglePlans() {
   const el = document.getElementById('plansList');
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
@@ -710,7 +683,7 @@ async function findZone() {
     if (d.pluUrl) {
       pluUrl = d.pluUrl;
       zonageUrl = d.zonageUrl || null;
-      planUrls = normalizeGpuDocumentsClient(d.planUrls || []);
+      planUrls = d.planUrls || [];
       smsData = d.sms || null;
       const po = document.getElementById('pluOk');
       let html = '📄 <strong style="color:var(--ink2)">' + (d.pluName||'Règlement PLU') + '</strong>';
@@ -811,17 +784,20 @@ async function runAnalysis(type) {
     setProgress(type, 95, 'Finalisation…');
     const d = await safeJson(r);
     if (!r.ok) throw new Error(d.error);
-    if (d.sections) {
-      results[type] = { sections: d.sections, conclusion_operationnelle: d.conclusion_operationnelle };
-    } else {
-      results[type] = d.raw || d.result || '';
-    }
-    setProgress(type, 100, 'Terminé !');
+    setProgress(type, 100, d.error_code === 'PDF_TROP_VOLUMINEUX' ? 'Document trop volumineux' : 'Terminé !');
     await new Promise(res => setTimeout(res, 300));
     spEl.className = 'spin';
     restoreBtn(type);
-    document.getElementById('zt-' + type).textContent = 'Zone ' + zone;
-    document.getElementById('rb-' + type).innerHTML = renderResult(results[type]);
+    document.getElementById('zt-' + type).textContent = 'Zone ' + (d.zone || zone);
+    if (!d.success && d.error_code === 'PDF_TROP_VOLUMINEUX') {
+      document.getElementById('rb-' + type).innerHTML = renderPdfTooBig(d);
+    } else if (d.sections) {
+      results[type] = { sections: d.sections, conclusion_operationnelle: d.conclusion_operationnelle };
+      document.getElementById('rb-' + type).innerHTML = renderResult(results[type]);
+    } else {
+      results[type] = d.raw || d.result || '';
+      document.getElementById('rb-' + type).innerHTML = renderResult(results[type]);
+    }
     resEl.className = 'res on';
     delete abortControllers[type];
   } catch(e) {
@@ -967,6 +943,32 @@ function tryParseRaw(text) {
     if (!Array.isArray(parsed.sections)) return null;
     return { sections: parsed.sections, conclusion_operationnelle: parsed.conclusion_operationnelle || null };
   } catch (e) { return null; }
+}
+
+// Rendu spécifique pour règlement trop volumineux — conserve les documents disponibles
+function renderPdfTooBig(d) {
+  const docs = Array.isArray(d.documents_disponibles) ? d.documents_disponibles : [];
+  const docsHtml = docs.length ? `<div style="margin-top:14px">
+    <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:7px">Plans graphiques disponibles</div>
+    ${docs.map(p => `<div style="margin-bottom:5px"><a href="${escHtml(p.url)}" target="_blank" rel="noopener" style="color:var(--blue);font-size:13px;text-decoration:none">↗ ${escHtml(p.nom)}</a></div>`).join('')}
+  </div>` : '';
+  const downloadHtml = d.reglement_url
+    ? `<a href="${escHtml(d.reglement_url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:var(--blue);color:#fff;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:500;text-decoration:none;margin-top:10px">↓ Télécharger le règlement complet</a>`
+    : '';
+  return `<div style="padding:16px 18px">
+  <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:12px">
+    <span style="font-size:22px;flex-shrink:0">📄</span>
+    <div>
+      <div style="font-weight:600;color:var(--ink);font-size:14px">Règlement trop volumineux pour l'analyse automatique</div>
+      <div style="font-size:12.5px;color:var(--ink2);margin-top:3px">${escHtml(d.message || '')}</div>
+    </div>
+  </div>
+  <div style="background:var(--s2);border-radius:8px;padding:11px 14px;font-size:13px;color:var(--ink2);border-left:3px solid var(--amber-t)">
+    <strong>Solution :</strong> Téléchargez le règlement ci-dessous, puis uploadez uniquement les pages concernant la zone <strong>${escHtml(d.zone || '')}</strong> via le champ "Uploader un PDF".
+  </div>
+  ${downloadHtml}
+  ${docsHtml}
+</div>`;
 }
 
 // Dispatche vers le rendu structuré ou un message d'erreur propre — jamais de JSON brut affiché
