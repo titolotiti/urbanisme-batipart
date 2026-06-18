@@ -385,6 +385,23 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
         </div>
       </div>
     </div>
+
+    <!-- AUDIT PLU VOLUMINEUX -->
+    <div style="max-width:520px;margin:24px auto 0;padding:0 20px">
+      <button onclick="toggleAudit()" style="background:none;border:none;color:var(--ink3);font-size:11.5px;cursor:pointer;padding:6px 0;text-decoration:underline;text-underline-offset:2px">
+        ⚙ Audit capacité PLU — tester les gros PLUi Grand Paris
+      </button>
+      <div id="auditSection" style="display:none;margin-top:10px;background:var(--s);border:1px solid var(--bdr);border-radius:12px;padding:16px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">Audit capacité PLU volumineux</div>
+        <div style="font-size:12px;color:var(--ink2);margin-bottom:12px">Teste si les règlements des PLUi de la petite couronne parisienne sont analysables par l'outil (aucune analyse Claude — contrôle de taille uniquement).</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button onclick="runAudit()" id="auditBtn" style="background:var(--blue);color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:500;cursor:pointer">Lancer l'audit</button>
+          <a id="auditCsvBtn" href="#" download="audit-plu.csv" style="display:none;font-size:12px;color:var(--blue)">↓ Télécharger CSV</a>
+        </div>
+        <div id="auditStatus" style="font-size:12px;color:var(--ink2);margin-top:8px"></div>
+        <div id="auditTable" style="margin-top:12px;overflow-x:auto"></div>
+      </div>
+    </div>
   </div>
 
   <!-- STEP 2 : Analyse -->
@@ -1023,11 +1040,12 @@ function renderAnalysis(data) {
     const hasAction = sec.action_recommandee && sec.action_recommandee.length > 5;
     const showVigilPanel = hasVigilance || hasDocs || hasAction;
     const docsHtml = hasDocs ? sec.documents_a_consulter.map(d => {
-      const displayName = d.nom_document && d.nom_document !== d.reference ? d.nom_document : d.reference;
+      const displayName = d.nom_document || d.reference || 'Document à consulter';
+      const refHtml = d.reference && d.reference !== displayName ? `<div class="sa-doc-ref">Référence : ${escHtml(d.reference)}</div>` : '';
       const linkHtml = d.url
         ? `<a href="${escHtml(d.url)}" target="_blank" rel="noopener">↗ Télécharger / consulter</a>`
         : `<span class="sa-doc-fallback">Lien direct non disponible — consulter le Géoportail de l'Urbanisme pour cette commune.</span>`;
-      return `<div class="sa-doc-block"><div class="sa-doc-title">📄 ${escHtml(displayName)}</div><div class="sa-doc-raison">${escHtml(d.raison)}</div>${linkHtml}</div>`;
+      return `<div class="sa-doc-block"><div class="sa-doc-title">📄 ${escHtml(displayName)}</div>${refHtml}<div class="sa-doc-raison">${escHtml(d.raison)}</div>${linkHtml}</div>`;
     }).join('') : '';
     html += `<div class="sa-section">
 <div class="sa-section-hd">
@@ -1096,11 +1114,12 @@ function generateExportHtml(data, zone, address, opLabel, date) {
     const hasAction = sec.action_recommandee && sec.action_recommandee.length > 5;
     const showVigilExp = hasVigilance || hasDocs || hasAction;
     const docsExpHtml = hasDocs ? sec.documents_a_consulter.map(d => {
-      const displayName = d.nom_document && d.nom_document !== d.reference ? d.nom_document : d.reference;
+      const displayName = d.nom_document || d.reference || 'Document à consulter';
+      const refHtml = d.reference && d.reference !== displayName ? `<br><span style="color:#64748b">Référence : ${escHtml(d.reference)}</span>` : '';
       const linkHtml = d.url
-        ? `<a href="${d.url}" style="color:#2563eb">↗ Télécharger / consulter</a>`
+        ? `<a href="${escHtml(d.url)}" style="color:#2563eb">↗ Télécharger / consulter</a>`
         : `<span style="color:#6b7280;font-style:italic">Lien direct non disponible — consulter le Géoportail de l'Urbanisme pour cette commune.</span>`;
-      return `<div style="margin-top:8px;padding:8px 12px;background:#eff6ff;border-radius:7px;border-left:3px solid #3b82f6;font-size:12px"><strong style="color:#1e40af">📄 ${displayName}</strong><br><span style="color:#374151">${d.raison}</span><br>${linkHtml}</div>`;
+      return `<div style="margin-top:8px;padding:8px 12px;background:#eff6ff;border-radius:7px;border-left:3px solid #3b82f6;font-size:12px"><strong style="color:#1e40af">📄 ${escHtml(displayName)}</strong>${refHtml}<br><span style="color:#374151">${escHtml(d.raison || '')}</span><br>${linkHtml}</div>`;
     }).join('') : '';
     const actionExpHtml = hasAction ? `<div style="margin-top:6px;font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:5px 10px;border-left:3px solid #f59e0b">📋 ${sec.action_recommandee}</div>` : '';
     sHtml += `<div class="section">
@@ -1243,6 +1262,59 @@ document.addEventListener('DOMContentLoaded', () => {
   setupDrop('dropM', 'fileM', 'tagM');
   renderHistory();
 });
+
+// ── AUDIT PLU VOLUMINEUX ──
+function toggleAudit() {
+  const s = document.getElementById('auditSection');
+  s.style.display = s.style.display === 'none' ? 'block' : 'none';
+}
+
+async function runAudit() {
+  const btn = document.getElementById('auditBtn');
+  const status = document.getElementById('auditStatus');
+  const table = document.getElementById('auditTable');
+  const csvBtn = document.getElementById('auditCsvBtn');
+  btn.disabled = true; btn.textContent = 'En cours…';
+  status.textContent = 'Interrogation de l\'API GPU — environ 30 secondes…';
+  table.innerHTML = ''; csvBtn.style.display = 'none';
+  try {
+    const r = await fetch('/api/audit', { method: 'GET' });
+    const d = await r.json();
+    btn.disabled = false; btn.textContent = 'Relancer l\'audit';
+    if (!d.results?.length) { status.textContent = 'Aucun résultat.'; return; }
+    status.textContent = `${d.total} PLUi testés · limite actuelle : ${d.limite_mb} Mo · ${d.date_test?.slice(0,19).replace('T',' ')}`;
+    const COLORS = { OK_ANALYSABLE: '#16a34a', PDF_TROP_VOLUMINEUX: '#dc2626', TAILLE_INCONNUE: '#d97706', ERREUR_TELECHARGEMENT: '#7c3aed', ERREUR_API: '#94a3b8', ERREUR_PARSE: '#ea580c' };
+    const rows = d.results.map(r => {
+      const c = COLORS[r.statut] || '#64748b';
+      const taille = r.taille_mb !== null ? r.taille_mb + ' Mo' : '—';
+      return `<tr>
+        <td style="font-weight:500;white-space:nowrap">${escHtml(r.commune)}</td>
+        <td style="color:#64748b;font-size:11px">${escHtml(r.code_insee)}</td>
+        <td style="text-align:right">${escHtml(taille)}</td>
+        <td><span style="background:${c}22;color:${c};padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap">${escHtml(r.statut)}</span></td>
+        <td style="font-size:11px;color:#64748b;max-width:220px">${escHtml(r.raison)}</td>
+      </tr>`;
+    }).join('');
+    table.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="border-bottom:1px solid var(--bdr);color:var(--ink3)">
+        <th style="text-align:left;padding:4px 6px">Territoire</th>
+        <th style="text-align:left;padding:4px 6px">Code</th>
+        <th style="text-align:right;padding:4px 6px">Taille</th>
+        <th style="text-align:left;padding:4px 6px">Statut</th>
+        <th style="text-align:left;padding:4px 6px">Détail</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+    if (d.csv) {
+      const blob = new Blob([d.csv], { type: 'text/csv;charset=utf-8' });
+      csvBtn.href = URL.createObjectURL(blob);
+      csvBtn.style.display = 'inline';
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Relancer l\'audit';
+    status.textContent = 'Erreur : ' + e.message;
+  }
+}
 </script>
 </body>
 </html>
