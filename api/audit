@@ -1,0 +1,206 @@
+// Mode audit PLU volumineux — GET ou POST /api/audit
+// Teste les PLUi/PLU intercommunaux de la petite couronne parisienne
+// et retourne un tableau indiquant si chaque règlement est analysable.
+// NE fait PAS d'analyse Claude — contrôle de taille uniquement.
+
+const INTERCOMS = [
+  { code: '200058014', nom: 'Grand-Orly Seine Bièvre' },
+  { code: '200057966', nom: 'Vallée Sud - Grand Paris' },
+  { code: '200058006', nom: 'Grand Paris Sud Est Avenir' },
+  { code: '200057990', nom: 'Boucle Nord de Seine' },
+  { code: '200057867', nom: 'Plaine Commune' },
+  { code: '200057875', nom: 'Est Ensemble' },
+  { code: '200057941', nom: 'Paris-Est-Marne-et-Bois' },
+  { code: '200057974', nom: 'Grand Paris Seine Ouest' },
+  { code: '200058097', nom: 'Paris Terres d\'Envol' },
+  { code: '200058790', nom: 'Grand Paris - Grand Est' },
+];
+
+const LARGE_PDF_MAX_MB = Number(process.env.LARGE_PDF_MAX_MB || 250);
+const H = { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' };
+
+async function resolveDoc(gridCode) {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    const r = await fetch(
+      `https://www.geoportail-urbanisme.gouv.fr/api/document?gridName=${gridCode}&status=document.production&limit=20`,
+      { headers: H, signal: ctrl.signal }
+    );
+    clearTimeout(t);
+    if (!r.ok) return null;
+    const docs = await r.json();
+    const du = (Array.isArray(docs) ? docs : []).filter(d => /^(PLUi?|POS|PSMV)$/.test(d.type || ''));
+    if (!du.length) return null;
+    du.sort((a, b) => new Date(b.uploadDate || 0) - new Date(a.uploadDate || 0));
+    const d = du[0];
+    const nm = d.name || '';
+    const m = nm.match(/^(\w+)_[A-Za-z]+_(\d{8})$/);
+    const codgeo = m ? m[1] : gridCode;
+    const date = m ? m[2] : '';
+    return { hash: d.id, codgeo, date, type: d.type, title: d.grid?.title || nm };
+  } catch(e) { console.log('resolveDoc err', gridCode, e.message); return null; }
+}
+
+async function getFiles(hash) {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    const r = await fetch(
+      `https://www.geoportail-urbanisme.gouv.fr/api/document/${hash}/files`,
+      { headers: H, signal: ctrl.signal }
+    );
+    clearTimeout(t);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return Array.isArray(d) && d.length ? d : null;
+  } catch(e) { return null; }
+}
+
+function listGraphicDocs(files, base) {
+  if (!Array.isArray(files)) return [];
+  const GRAPHIC = /graphique|zonage|prescription|r[eè]glement[_\s-]?graphique|plan|servitude|annexe|oap|ppri|sup|stationnement|pleine|biotope|cbs|patrimoine|paysag|emplacement/i;
+  return files
+    .filter(f => String(f.name || '').toLowerCase().endsWith('.pdf') && GRAPHIC.test(String(f.name || '')))
+    .map(f => ({ name: f.name || '', url: `${base}/${f.name || ''}` }))
+    .filter(d => d.name && d.url)
+    .slice(0, 80);
+}
+
+function findReglementUrl(files, base, codgeo, date) {
+  if (!files?.length) {
+    // Fallback URL canonique si aucun fichier listé
+    return date ? { url: `${base}/${codgeo}_reglement_${date}.pdf`, name: `${codgeo}_reglement_${date}.pdf`, source: 'fallback' } : null;
+  }
+  const EXCLUDE = /graphique|rapport.pr[ée]sentation|padd|oap|notice|info.surf|sanitaire|assainissement|servitude|sup[_-]/i;
+  const INCLUDE = /r[eè]glement/i;
+  const candidates = files
+    .filter(f => {
+      const n = (f.name || '').toLowerCase();
+      return n.endsWith('.pdf') && INCLUDE.test(n) && !EXCLUDE.test(n);
+    })
+    .map(f => {
+      const n = f.name || '';
+      const priority = /ecrit|zone|secteur|partie[_\s-]?\d|piece[_\s-]?\d|\d[_-]\d{8}/i.test(n) ? 1
+                     : /_\d+_\d{8}/i.test(n) ? 2 : 3;
+      return { name: n, url: `${base}/${n}`, priority, source: 'api' };
+    })
+    .sort((a, b) => a.priority - b.priority);
+  // Fallback : URL canonique (format standard GPU)
+  if (!candidates.length && date) {
+    return { url: `${base}/${codgeo}_reglement_${date}.pdf`, name: `${codgeo}_reglement_${date}.pdf`, source: 'fallback' };
+  }
+  return candidates[0] || null;
+}
+
+async function checkSize(url) {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 12000);
+    const r = await fetch(url, { method: 'HEAD', headers: { 'User-Agent': 'Mozilla/5.0' }, signal: ctrl.signal });
+    clearTimeout(t);
+    if (!r.ok) return { ok: false, httpStatus: r.status };
+    const cl = parseInt(r.headers.get('content-length') || '0');
+    const ct = r.headers.get('content-type') || '';
+    return { ok: true, bytes: cl, mb: cl > 0 ? Math.round(cl / 1048576 * 10) / 10 : null, contentType: ct };
+  } catch(e) { return { ok: false, error: e.message }; }
+}
+
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  const maxMb = LARGE_PDF_MAX_MB;
+  const now = new Date().toISOString();
+  const results = [];
+
+  // Traitement séquentiel pour ménager l'API GPU (pas de flood)
+  for (const epci of INTERCOMS) {
+    const row = {
+      commune: epci.nom,
+      code_insee: epci.code,
+      document_gpu: '',
+      nom_plu: '',
+      reglement_url: '',
+      taille_mb: null,
+      statut: 'ERREUR_API',
+      raison: '',
+      date_test: now,
+      limite_mb: maxMb,
+      documents_graphiques_count: 0,
+      documents_graphiques_disponibles: '',
+    };
+
+    console.log('Audit:', epci.nom, '(' + epci.code + ')');
+
+    const doc = await resolveDoc(epci.code);
+    if (!doc || !doc.hash) {
+      row.raison = 'Document GPU introuvable — territoire peut-être sans PLU approuvé en production';
+      results.push(row); continue;
+    }
+
+    row.document_gpu = `DU_${epci.code}/${doc.hash.slice(0, 12)}…`;
+    row.nom_plu = `${doc.type || 'PLU'} ${doc.title}`;
+
+    const base = `https://data.geopf.fr/annexes/gpu/documents/DU_${epci.code}/${doc.hash}`;
+    const files = await getFiles(doc.hash);
+    const graphicDocs = listGraphicDocs(files, base);
+    row.documents_graphiques_count = graphicDocs.length;
+    row.documents_graphiques_disponibles = graphicDocs.map(d => d.name).join(' | ');
+
+    const reg = findReglementUrl(files, base, doc.codgeo, doc.date);
+
+    if (!reg) {
+      row.raison = 'Règlement écrit non identifiable dans les pièces GPU';
+      results.push(row); continue;
+    }
+
+    row.reglement_url = reg.url;
+    const sz = await checkSize(reg.url);
+
+    if (!sz.ok) {
+      row.statut = 'ERREUR_TELECHARGEMENT';
+      row.raison = sz.error ? `Erreur réseau : ${sz.error}` : `HTTP ${sz.httpStatus}`;
+    } else if (!sz.bytes || sz.mb === null) {
+      row.statut = 'TAILLE_INCONNUE';
+      row.raison = 'Content-Length absent — taille non déterminable par HEAD (téléchargement réel nécessaire)';
+    } else if (!sz.contentType.includes('pdf') && !sz.contentType.includes('octet')) {
+      row.statut = 'ERREUR_PARSE';
+      row.taille_mb = sz.mb;
+      row.raison = `Content-Type inattendu : ${sz.contentType}`;
+    } else {
+      row.taille_mb = sz.mb;
+      if (sz.mb <= maxMb) {
+        row.statut = 'OK_ANALYSABLE';
+        row.raison = `${sz.mb} Mo ≤ ${maxMb} Mo`;
+      } else {
+        row.statut = 'PDF_TROP_VOLUMINEUX';
+        row.raison = `${sz.mb} Mo > ${maxMb} Mo (limite actuelle)`;
+      }
+    }
+
+    results.push(row);
+    // Pause anti-flood entre chaque EPCI
+    await new Promise(r => setTimeout(r, 400));
+  }
+
+  const csvHeader = 'commune,code_insee,document_gpu,nom_plu,reglement_url,taille_mb,statut,raison,documents_graphiques_count,documents_graphiques_disponibles,date_test\n';
+  const csvBody = results.map(r =>
+    [r.commune, r.code_insee, r.document_gpu, r.nom_plu, r.reglement_url,
+     r.taille_mb ?? '', r.statut, r.raison, r.documents_graphiques_count ?? 0, r.documents_graphiques_disponibles || '', r.date_test]
+      .map(v => `"${String(v || '').replace(/"/g, '""')}"`)
+      .join(',')
+  ).join('\n');
+  const csv = csvHeader + csvBody;
+
+  const fmt = (req.query?.format) || (req.body?.format) || 'json';
+  if (fmt === 'csv') {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="audit-plu-${now.slice(0,10)}.csv"`);
+    return res.status(200).send(csv);
+  }
+
+  return res.status(200).json({ date_test: now, limite_mb: maxMb, total: results.length, results, csv });
+}
