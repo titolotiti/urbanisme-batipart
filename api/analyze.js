@@ -551,18 +551,44 @@ export default async function handler(req, res) {
       try {
         const m = (docUrl || '').match(/documents\/DU_\w+\/([0-9a-f]{16,40})\//);
         if (!m) return null;
-        const r = await fetch(`https://www.geoportail-urbanisme.gouv.fr/api/document/${m[1]}/files`, {
-          headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' }
-        });
+        const hash = m[1];
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 8000);
+        let r;
+        try {
+          r = await fetch(`https://www.geoportail-urbanisme.gouv.fr/api/document/${hash}/files`, {
+            headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+            signal: ctrl.signal
+          });
+        } finally { clearTimeout(tid); }
         if (!r.ok) return null;
         const files = await r.json();
-        if (!Array.isArray(files)) return null;
+        if (!Array.isArray(files) || !files.length) return null;
+        console.log(`GPU files (${files.length}):`, files.slice(0, 8).map(f => f.name).join(' ; ').slice(0, 300));
         const base = docUrl.slice(0, docUrl.lastIndexOf('/'));
-        return files
-          // Motif STRICT : {codgeo}_reglement[_N]_{date}.pdf — exclut les annexes
-          // pièges comme "info_surf_19_01_reglement_sanitaire" ou les SUP
-          .filter(f => /^\w+?_reglement(_\d+)?_\d{8}\.pdf$/i.test(f.name || '') && !/graphique/i.test(f.name || ''))
-          .map(f => ({ name: f.name, title: f.title || '', url: base + '/' + f.name }));
+
+        // Exclusions claires : graphiques, rapport de présentation, PADD, OAP, annexes non-réglementaires
+        const EXCLUDE = /graphique|rapport.pr[ée]sentation|padd|oap|notice|info.surf|sanitaire|assainissement|servitude|sup[_-]/i;
+        // Inclusions : tout ce qui ressemble à un règlement écrit
+        // Couvre : _reglement_, _reglements_, _reglement-ecrit_, pièce_4_reglement, 4-1-2-1_Reglements...
+        const INCLUDE = /r[eè]glement/i;
+
+        const candidates = files
+          .filter(f => {
+            const n = (f.name || '').toLowerCase();
+            return n.endsWith('.pdf') && INCLUDE.test(n) && !EXCLUDE.test(n);
+          })
+          .map(f => {
+            const n = f.name || '';
+            // Priorité croissante : pièces ciblées (zone/écrit/secteur/partie) en premier
+            const priority = /ecrit|zone|secteur|partie[_\s-]?\d|piece[_\s-]?\d|\d[_-]\d{8}/i.test(n) ? 1
+                           : /_\d+_\d{8}/i.test(n) ? 2 : 3;
+            return { name: n, title: f.title || '', url: `${base}/${n}`, priority };
+          })
+          .sort((a, b) => a.priority - b.priority);
+
+        console.log('Candidats règlement:', candidates.length, candidates.slice(0, 3).map(c => c.name).join(' ; '));
+        return candidates.length ? candidates : null;
       } catch (e) { console.log('gpuReglementPieces err:', e.message); return null; }
     }
 
@@ -629,7 +655,17 @@ export default async function handler(req, res) {
       }
       if (lastErr) {
         if (/PDF_TROP_VOLUMINEUX/.test(lastErr.message)) {
-          return res.status(422).json({ error: 'Le règlement publié sur le Géoportail est trop volumineux pour l\'analyse automatique (' + lastErr.message.split(':')[1] + ' Mo) et aucune pièce séparée exploitable n\'a été trouvée. Téléchargez-le manuellement, extrayez la partie utile (zone concernée) et utilisez l\'upload manuel du PDF.' });
+          const sizeStr = (lastErr.message.match(/:>?\s*(\S+)/) || [])[1] || '?';
+          console.log('PDF_TROP_VOLUMINEUX final:', sizeStr, 'Mo — renvoie réponse structurée');
+          return res.status(200).json({
+            success: false,
+            error_code: 'PDF_TROP_VOLUMINEUX',
+            zone,
+            analysisType,
+            message: `Le règlement PLU (${sizeStr} Mo) dépasse la capacité d'analyse automatique. Téléchargez-le et uploadez uniquement les pages concernant la zone ${zone}.`,
+            reglement_url: pluUrl,
+            documents_disponibles: normalizedPlans,
+          });
         }
         return res.status(422).json({ error: 'Impossible de télécharger le règlement après plusieurs tentatives (' + lastErr.message + '). Le serveur de la collectivité est peut-être temporairement indisponible : réessayez dans quelques minutes, ou téléchargez le règlement manuellement et utilisez l\'upload manuel du PDF.' });
       }
