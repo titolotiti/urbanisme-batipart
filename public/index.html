@@ -229,6 +229,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Geist',sans-serif;font-w
 .sa-title-label{font-size:11px;font-weight:500;border-radius:5px;padding:1px 7px}
 .sa-title-label.ok{background:var(--green-bg);color:var(--green-t)}.sa-title-label.warn{background:var(--amber-bg);color:var(--amber-t)}.sa-title-label.nok{background:var(--red-l);color:var(--red-t)}.sa-title-label.unk{background:var(--s2);color:var(--ink3)}
 .sa-resume{font-size:13px;color:var(--ink2);line-height:1.65}
+.sa-rule-visible{font-size:12.5px;color:var(--ink2);line-height:1.6;margin-top:5px;padding:5px 10px;background:var(--s2);border-radius:6px;border-left:3px solid var(--bdr)}
 .sa-source{font-size:11px;color:var(--ink3);margin-top:5px}
 .sa-source strong{color:var(--blue)}
 .sa-toggles{display:flex;gap:6px;flex-wrap:wrap;padding:0 18px 12px}
@@ -787,8 +788,7 @@ async function runAnalysis(type) {
     spEl.className = 'spin';
     restoreBtn(type);
     document.getElementById('zt-' + type).textContent = 'Zone ' + zone;
-    const analysisResult = results[type];
-    document.getElementById('rb-' + type).innerHTML = (analysisResult && typeof analysisResult === 'object' && analysisResult.sections) ? renderAnalysis(analysisResult) : mdParse(analysisResult || '');
+    document.getElementById('rb-' + type).innerHTML = renderResult(results[type]);
     resEl.className = 'res on';
     delete abortControllers[type];
   } catch(e) {
@@ -808,9 +808,16 @@ function downloadNote(type) {
   const opLabels = {destination:'Changement de destination',surelevation:'Surélévation',extension:'Extension'};
   const opLabel = opLabels[type] || type;
   const date = new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
-  let html;
+  // Résout le résultat stocké : objet structuré, string avec JSON embarqué, ou texte markdown
+  let structuredData = null;
   if (result && typeof result === 'object' && result.sections) {
-    html = generateExportHtml(result, zone, address, opLabel, date);
+    structuredData = result;
+  } else if (typeof result === 'string') {
+    structuredData = tryParseRaw(result);
+  }
+  let html;
+  if (structuredData) {
+    html = generateExportHtml(structuredData, zone, address, opLabel, date);
   } else {
     const text = typeof result === 'string' ? result : '';
     html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Note de synthèse PLU — ${zone}</title><style>body{font-family:'Segoe UI',Arial,sans-serif;max-width:780px;margin:40px auto;color:#1a1a1a;font-size:14px;line-height:1.7;padding:0 24px}.header{border-bottom:2px solid #2C4A6E;padding-bottom:16px;margin-bottom:24px}.header h1{font-size:20px;color:#2C4A6E;margin:0 0 4px}.header .meta{font-size:12px;color:#666}h2{font-size:15px;font-weight:600;color:#1a1a1a;margin:20px 0 8px;padding-left:10px;border-left:3px solid #2C4A6E}blockquote{background:#f5f5f3;border-left:3px solid #2C4A6E;padding:8px 14px;margin:10px 0;font-size:13px;color:#444;border-radius:0 5px 5px 0}p{margin:0 0 8px}strong{font-weight:600}table{width:100%;border-collapse:collapse;margin:12px 0}th{background:#2C4A6E;color:#fff;padding:8px 12px;text-align:left;font-size:13px}td{padding:7px 12px;border:1px solid #ddd;font-size:13px}tr:nth-child(even) td{background:#f9f8f6}.footer{margin-top:40px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#999}@media print{body{margin:20px}}</style></head><body><div class="header"><h1>Note de synthèse — UrbanScan</h1><div class="meta"><strong>Adresse :</strong> ${address} &nbsp;|&nbsp; <strong>Zone :</strong> ${zone} &nbsp;|&nbsp; <strong>Opération :</strong> ${opLabel}<br><strong>Date :</strong> ${date}</div></div>${mdToHtml(text)}<div class="footer">Document généré par UrbanScan · Analyse basée sur le règlement écrit. Pour un dépôt de permis, faire vérifier les plans graphiques par un architecte.</div></body></html>`;
@@ -914,6 +921,37 @@ function mdParse(s) {
 }
 
 // ── STRUCTURED ANALYSIS RENDERER ──
+
+// Tente d'extraire et parser le JSON structuré depuis un texte brut
+// (couvre <json>…</json> et ```json … ```)
+function tryParseRaw(text) {
+  if (!text || typeof text !== 'string') return null;
+  try {
+    const m = text.match(/<json>([\s\S]*?)<\/json>/)
+            || text.match(/```json\s*([\s\S]*?)```/);
+    if (!m) return null;
+    const parsed = JSON.parse(m[1].trim());
+    if (!Array.isArray(parsed.sections)) return null;
+    return { sections: parsed.sections, conclusion_operationnelle: parsed.conclusion_operationnelle || null };
+  } catch (e) { return null; }
+}
+
+// Dispatche vers le rendu structuré ou un message d'erreur propre — jamais de JSON brut affiché
+function renderResult(stored) {
+  if (stored && typeof stored === 'object' && Array.isArray(stored.sections)) {
+    return renderAnalysis(stored);
+  }
+  if (typeof stored === 'string') {
+    const parsed = tryParseRaw(stored);
+    if (parsed) return renderAnalysis(parsed);
+    if (stored.trim()) {
+      // Texte brut sans JSON détectable (ancien format markdown)
+      return mdParse(stored);
+    }
+  }
+  return '<p style="color:#dc2626;font-size:13px;padding:12px 0">Analyse structurée indisponible — relancez l\'analyse.</p>';
+}
+
 function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -949,11 +987,12 @@ function renderAnalysis(data) {
   <div class="sa-info">
     <div class="sa-title">${escHtml(sec.titre)}<span class="sa-title-label ${bc}">${escHtml(sec.statut_label)}</span></div>
     <div class="sa-resume">${escHtml(sec.resume)}</div>
+    ${hasRule ? `<div class="sa-rule-visible">${escHtml(sec.regle_principale)}</div>` : ''}
     ${(sec.article || sec.page) ? `<div class="sa-source">${sec.article ? '<strong>' + escHtml(sec.article) + '</strong>' : ''}${sec.article && sec.page ? ' · ' : ''}${sec.page ? 'p. ' + escHtml(sec.page) : ''}</div>` : ''}
   </div>
 </div>
 <div class="sa-toggles">
-  ${hasDetail ? `<button class="sa-toggle-btn" onclick="togglePanel('${pidDetail}',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>Voir le détail</button>` : ''}
+  ${hasDetail ? `<button class="sa-toggle-btn" onclick="togglePanel('${pidDetail}',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>Plus de détail</button>` : ''}
   ${(hasRule || hasCitation) ? `<button class="sa-toggle-btn" onclick="togglePanel('${pidRegle}',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>Texte réglementaire</button>` : ''}
   ${hasVigilance ? `<button class="sa-toggle-btn" onclick="togglePanel('${pidVigil}',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>Points de vigilance</button>` : ''}
 </div>
