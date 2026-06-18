@@ -1,6 +1,11 @@
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse/lib/pdf-parse.js');
+const fs = require('fs');
+
+// Limites configurables via variables d'environnement Vercel
+const PDF_MAX_MB = Number(process.env.PDF_MAX_MB || 60);
+const LARGE_PDF_MAX_MB = Number(process.env.LARGE_PDF_MAX_MB || 250);
 
 const PROMPT = `Tu es un expert en droit de l'urbanisme français et en faisabilité immobilière. Produis une note de faisabilité urbanistique de niveau professionnel, identique à celles produites par un cabinet d'architecte ou d'urbaniste pour un investisseur immobilier.
 
@@ -284,6 +289,42 @@ function normalizeAnalysis(parsed) {
   };
 }
 
+// Télécharge un PDF en streaming vers /tmp sans accumuler les chunks en mémoire.
+// Évite le pic mémoire 2× de Buffer.concat sur les gros règlements.
+// Lève PDF_TROP_VOLUMINEUX si content-length ou total réel dépassent maxBytes.
+async function streamToTmp(url, tmpPath, maxBytes) {
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(new Error('timeout 180s')), 180000);
+  let response;
+  try {
+    response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: ctrl.signal });
+  } finally { clearTimeout(tid); }
+  if (!response.ok) throw new Error('Téléchargement échoué (' + response.status + ')');
+  const cl = parseInt(response.headers.get('content-length') || '0');
+  if (cl > maxBytes) {
+    try { response.body?.cancel(); } catch(e) {}
+    throw new Error('PDF_TROP_VOLUMINEUX:' + Math.round(cl / 1048576));
+  }
+  const fd = fs.openSync(tmpPath, 'w');
+  const reader = response.body.getReader();
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > maxBytes) {
+        try { await reader.cancel(); } catch(e) {}
+        throw new Error('PDF_TROP_VOLUMINEUX:>' + Math.round(maxBytes / 1048576));
+      }
+      fs.writeSync(fd, Buffer.from(value));
+    }
+  } finally {
+    try { fs.closeSync(fd); } catch(e) {}
+  }
+  return total;
+}
+
 // Extrait le texte d'un buffer PDF
 async function extractText(buffer) {
   let pageNum = 0;
@@ -496,7 +537,7 @@ export default async function handler(req, res) {
       }
       return Buffer.concat(chunks);
     }
-    const MAX_PDF = 60 * 1024 * 1024; // 60 Mo
+    const MAX_PDF = PDF_MAX_MB * 1024 * 1024;
 
     // Retry sur échec transitoire (404/blocage temporaire du serveur distant)
     // + cache mémoire des règlements déjà téléchargés (lambda chaude)
@@ -639,18 +680,25 @@ export default async function handler(req, res) {
           }
         }
       }
-      // Ultime recours (règlement monolithique géant, aucune pièce séparée) :
-      // une tentative avec plafond étendu — nécessite la mémoire augmentée
-      // dans vercel.json. Au-delà de 130 Mo, on renonce proprement.
+      // Mode gros PDF optimisé : streaming vers /tmp (pas d'accumulation de chunks,
+      // évite le pic mémoire 2× du Buffer.concat), puis chargement unique du buffer
+      // et extraction complète avec marqueurs de pages — même logique réglementaire qu'en mode normal.
+      // Note : pdf-parse impose un Buffer complet ; /tmp réduit uniquement le pic download.
       if (lastErr && /PDF_TROP_VOLUMINEUX/.test(lastErr.message)) {
+        const tmpPath = '/tmp/plu_large_' + Date.now() + '_' + Math.random().toString(36).slice(2) + '.pdf';
+        const maxLarge = LARGE_PDF_MAX_MB * 1024 * 1024;
         try {
-          console.log('Tentative plafond étendu (130 Mo) sur le règlement principal...');
-          pdfBuffer = await downloadCapped(pluUrl, 130 * 1024 * 1024);
-          console.log('Règlement volumineux récupéré:', Math.round(pdfBuffer.length / 1048576), 'Mo');
+          console.log('Mode gros PDF optimisé: streaming vers /tmp (plafond ' + LARGE_PDF_MAX_MB + ' Mo)...');
+          const bytes = await streamToTmp(pluUrl, tmpPath, maxLarge);
+          console.log('PDF dans /tmp:', Math.round(bytes / 1048576), 'Mo — chargement unique du buffer...');
+          pdfBuffer = fs.readFileSync(tmpPath);
           lastErr = null;
-        } catch (e) {
-          lastErr = e;
-          console.log('Plafond étendu insuffisant:', e.message);
+          console.log('Mode gros PDF optimisé: buffer chargé —', Math.round(pdfBuffer.length / 1048576), 'Mo — extraction complète en cours');
+        } catch(e) {
+          console.log('Mode gros PDF optimisé échoué:', e.message);
+          if (/PDF_TROP_VOLUMINEUX/.test(e.message)) lastErr = e;
+        } finally {
+          try { fs.unlinkSync(tmpPath); } catch(e) {}
         }
       }
       if (lastErr) {
