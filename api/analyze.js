@@ -30,8 +30,13 @@ ANALYSE EN 10 SECTIONS DANS CET ORDRE EXACT :
 
 CHAMPS OBLIGATOIRES PAR SECTION :
 - titre : intitulé exact parmi la liste ci-dessus
-- statut : "✅" | "⚠️" | "❌" | "❓"
-- statut_label : "Applicable" | "Sous conditions" | "Non applicable" | "Non trouvé"
+- statut : "✅" | "⚠️" | "❌" | "🗺️" | "❓" — CHOIX SELON 4 CAS :
+  CAS A — règle trouvée ET applicable à ce projet : "✅" → statut_label "Applicable"
+  CAS B — règle trouvée ET non applicable (exclusion explicite, seuil non atteint, opération non visée) : "❌" → statut_label "Non applicable"
+  CAS C — règle trouvée, mais son APPLICATION PARCELLAIRE dépend d'un plan graphique ou d'une annexe cartographique : "🗺️" → statut_label "À vérifier sur plan graphique"
+  CAS D — règle RÉELLEMENT ABSENTE du règlement écrit transmis : "❓" → statut_label "Non trouvé dans le règlement écrit"
+  RÈGLE ABSOLUE : n'utilise "❓" que si la règle est vraiment absente — si elle existe mais dépend d'un plan cartographique, utilise "🗺️".
+- statut_label : "Applicable" | "Sous conditions" | "Non applicable" | "À vérifier sur plan graphique" | "Non trouvé dans le règlement écrit"
 - resume : 1-2 phrases — verdict immédiat pour CE projet
 - regle_principale : valeurs exactes (chiffres, %, seuils) ou "Non trouvé dans les extraits."
 - article : ex "Art. UH 1.2" — ou "" si absent
@@ -48,12 +53,31 @@ CHAMPS OBLIGATOIRES PAR SECTION :
   (i) Risques identifiés
 - citation : extrait verbatim entre guillemets — ou "" si absent
 - points_vigilance : liste de 2 à 4 éléments concrets (plans à consulter, confirmations à obtenir, risques)
+- documents_a_consulter : tableau (peut être vide []) — un objet par document externe à consulter :
+  { "reference": "Plan graphique n°4.2", "nom_document": "Plan des prescriptions et périmètres particuliers", "raison": "Vérifier si la parcelle est incluse dans un secteur SMS, STML, filet de hauteur ou emplacement réservé.", "url": null }
+  N'invente jamais un URL. Si le lien est inconnu, laisse "url": null.
+  Inclus un document quand la section utilise "🗺️" ou quand l'analyse cite un plan, une annexe, ou un document cartographique indispensable.
+- source_manquante : nom du document manquant si statut "🗺️" ou "❓", sinon ""
+- action_recommandee : phrase d'action concrète pour l'utilisateur (ex: "Télécharger le plan graphique n°4.3 et localiser la parcelle dans le secteur colorisé."), sinon ""
 
 CONTRAINTES DE LONGUEUR (impératives — un JSON tronqué est inutilisable) :
 - analyse_detaillee : MINIMUM 200 mots, MAXIMUM 1 200 caractères
 - citation : MAXIMUM 800 caractères
 - points_vigilance : 2 à 4 éléments, JAMAIS plus de 4
+- documents_a_consulter : 0 à 3 éléments maximum
 - synthese dans conclusion_operationnelle : MAXIMUM 200 mots
+
+LOGIQUE AVANT D'ÉCRIRE "Non trouvé dans le règlement écrit" :
+Avant d'utiliser "❓", recherche ces mots-clés dans les extraits :
+- Stationnement : "stationnement", "normes", "places", "vélo", "aire de stationnement"
+- SMS/mixité sociale : "SMS", "mixité sociale", "logements sociaux", "servitude de mixité", "L151-15"
+- STML/taille : "STML", "taille minimale", "T3", "65 %", "typologie", "type 3"
+- Pleine terre/CBS : "pleine terre", "CBS", "coefficient de biotope", "perméable"
+- Mixité fonctionnelle : "linéaire commercial", "rez-de-chaussée actif", "commerce", "diversité"
+- Emplacements réservés : "emplacement réservé", "ER", "bénéficiaire", "voirie"
+- Risques/servitudes : "PPRI", "inondation", "carrières", "SUP", "risques naturels"
+Si la règle existe dans le règlement mais que son application à la parcelle dépend d'un plan cartographique : utilise "🗺️", précise le plan dans documents_a_consulter et action_recommandee.
+Ne jamais écrire "Information non fournie dans les extraits" si on sait quel document permet de conclure.
 
 STANDARD DE QUALITÉ pour analyse_detaillee :
 ❌ Insuffisant : "65 % de T3+ à partir de 6 logements."
@@ -73,17 +97,20 @@ FORMAT JSON OBLIGATOIRE :
       "page": "XX",
       "analyse_detaillee": "...",
       "citation": "...",
-      "points_vigilance": ["...", "..."]
+      "points_vigilance": ["...", "..."],
+      "documents_a_consulter": [],
+      "source_manquante": "",
+      "action_recommandee": ""
     },
-    { "titre": "Mixité sociale / SMS", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
-    { "titre": "Taille minimale des logements / STML", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
-    { "titre": "Mixité fonctionnelle", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
-    { "titre": "Stationnement", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
-    { "titre": "Hauteur", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
-    { "titre": "Emprise au sol", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
-    { "titre": "Espaces verts / pleine terre", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
-    { "titre": "Implantation / prospects", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] },
-    { "titre": "Risques, servitudes et prescriptions particulières", "statut": "❓", "statut_label": "Non trouvé", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."] }
+    { "titre": "Mixité sociale / SMS", "statut": "🗺️", "statut_label": "À vérifier sur plan graphique", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."], "documents_a_consulter": [{"reference": "Plan graphique n°4.2", "nom_document": "Plan des prescriptions", "raison": "Vérifier si la parcelle est en secteur SMS.", "url": null}], "source_manquante": "Plan graphique n°4.2", "action_recommandee": "Télécharger le plan graphique n°4.2 et localiser la parcelle dans le secteur SMS colorisé." },
+    { "titre": "Taille minimale des logements / STML", "statut": "🗺️", "statut_label": "À vérifier sur plan graphique", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."], "documents_a_consulter": [], "source_manquante": "", "action_recommandee": "" },
+    { "titre": "Mixité fonctionnelle", "statut": "❓", "statut_label": "Non trouvé dans le règlement écrit", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."], "documents_a_consulter": [], "source_manquante": "", "action_recommandee": "" },
+    { "titre": "Stationnement", "statut": "🗺️", "statut_label": "À vérifier sur plan graphique", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."], "documents_a_consulter": [], "source_manquante": "", "action_recommandee": "" },
+    { "titre": "Hauteur", "statut": "❓", "statut_label": "Non trouvé dans le règlement écrit", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."], "documents_a_consulter": [], "source_manquante": "", "action_recommandee": "" },
+    { "titre": "Emprise au sol", "statut": "❓", "statut_label": "Non trouvé dans le règlement écrit", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."], "documents_a_consulter": [], "source_manquante": "", "action_recommandee": "" },
+    { "titre": "Espaces verts / pleine terre", "statut": "🗺️", "statut_label": "À vérifier sur plan graphique", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."], "documents_a_consulter": [], "source_manquante": "", "action_recommandee": "" },
+    { "titre": "Implantation / prospects", "statut": "❓", "statut_label": "Non trouvé dans le règlement écrit", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."], "documents_a_consulter": [], "source_manquante": "", "action_recommandee": "" },
+    { "titre": "Risques, servitudes et prescriptions particulières", "statut": "🗺️", "statut_label": "À vérifier sur plan graphique", "resume": "...", "regle_principale": "...", "article": "", "page": "", "analyse_detaillee": "...", "citation": "", "points_vigilance": ["..."], "documents_a_consulter": [{"reference": "Annexes SUP", "nom_document": "Servitudes d'utilité publique", "raison": "Vérifier les servitudes et risques affectant la parcelle.", "url": null}], "source_manquante": "Annexes SUP / PPRI", "action_recommandee": "Consulter les annexes du PLU (servitudes d'utilité publique, PPRI) et le Géoportail des risques naturels." }
   ],
   "conclusion_operationnelle": {
     "points_bloquants": ["Contrainte empêchant ou limitant significativement le projet"],
@@ -121,8 +148,8 @@ const SECTION_TITLES = [
   'Risques, servitudes et prescriptions particulières',
 ];
 
-const STATUT_FROM_LABEL = { 'applicable': '✅', 'sous conditions': '⚠️', 'non applicable': '❌', 'non trouvé': '❓' };
-const LABEL_FROM_STATUT = { '✅': 'Applicable', '⚠️': 'Sous conditions', '❌': 'Non applicable', '❓': 'Non trouvé' };
+const STATUT_FROM_LABEL = { 'applicable': '✅', 'sous conditions': '⚠️', 'non applicable': '❌', 'à vérifier sur plan graphique': '🗺️', 'non trouvé': '❓', 'non trouvé dans le règlement écrit': '❓' };
+const LABEL_FROM_STATUT = { '✅': 'Applicable', '⚠️': 'Sous conditions', '❌': 'Non applicable', '🗺️': 'À vérifier sur plan graphique', '❓': 'Non trouvé' };
 
 function coerceStatut(rawStatut, rawLabel) {
   const s = (rawStatut || '').trim();
@@ -144,6 +171,9 @@ function normalizeAnalysis(parsed) {
     analyse_detaillee: 'Cette section n\'a pas pu être analysée dans les extraits disponibles. Vérifier manuellement dans le règlement écrit et les plans graphiques.',
     citation: '',
     points_vigilance: ['Vérifier manuellement dans le règlement et les plans graphiques.'],
+    documents_a_consulter: [],
+    source_manquante: '',
+    action_recommandee: '',
   });
 
   const input = Array.isArray(parsed.sections) ? parsed.sections : [];
@@ -163,6 +193,14 @@ function normalizeAnalysis(parsed) {
       analyse_detaillee: found.analyse_detaillee || '',
       citation: found.citation || '',
       points_vigilance: Array.isArray(found.points_vigilance) ? found.points_vigilance.slice(0, 4) : [],
+      documents_a_consulter: Array.isArray(found.documents_a_consulter) ? found.documents_a_consulter.slice(0, 3).map(d => ({
+        reference: d.reference || '',
+        nom_document: d.nom_document || '',
+        raison: d.raison || '',
+        url: d.url || null,
+      })) : [],
+      source_manquante: found.source_manquante || '',
+      action_recommandee: found.action_recommandee || '',
     };
   });
 
